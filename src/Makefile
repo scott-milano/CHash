@@ -20,7 +20,9 @@ HEADER	= hash.h
 
 # Optional executables
 DOXYGEN ?= $(shell command -v /usr/local/bin/doxygen;)
-DOXYGEN ?= $(shell command -v doxygen;)
+ifeq (,$(DOXYGEN))
+DOXYGEN = $(shell command -v doxygen;)
+endif
 CTAGS   ?= $(shell command -v ctags;)
 CSCOPE  ?= $(shell command -v cscope;)
 VALGRIND ?= $(shell command -v valgrind;)
@@ -41,12 +43,15 @@ INSTALL = ../lib
 SOURCES = $(wildcard *.c)
 OBJECTS = $(addprefix $(OBJDIR)/,$(SOURCES:.c=.o))
 LIBS += -lz -lpthread
-ifeq ($(MAKECMDGOALS),debug)
-CFLAGS += -Wall -g -Og
-LDFLAGS += -g -pg -Og -lpthread
-else
+ifeq ($(MAKECMDGOALS),all)
 CFLAGS += -Wall -O2
 LDFLAGS += -O2 -lpthread
+else ifeq ($(MAKECMDGOALS),timetest)
+CFLAGS += -Wall -O2
+LDFLAGS += -O2 -lpthread
+else
+CFLAGS += -Wall -Og
+LDFLAGS += -Og -lpthread
 endif
 
 all: $(ARCHIVE) $(PROGRAM) tags
@@ -56,8 +61,8 @@ debug: $(ARCHIVE) $(PROGRAM)
 
 # Clean up output
 clean:
-	$(RM) $(OBJECTS) $(OBJECTS:.o=.d) $(ARCHIVE) $(PROGRAM) tags cscope.out
-	rmdir $(OBJDIR)
+	-$(RM) $(OBJECTS) $(OBJECTS:.o=.d) $(ARCHIVE) $(PROGRAM)
+	-$(RM) tags cscope.out ../docs/ $(OBJDIR)/
 
 $(PROGRAM): $(OBJECTS)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
@@ -89,19 +94,24 @@ ifneq (,$(wildcard test.c))
 	@$(CC) -g -DUNIT_TEST $(LDFLAGS) $(LOCALLIBS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest
 	@./unittest
 	@$(RM) ./unittest gmon.out
+endif
 
 memtest:
+ifneq (,$(wildcard test.c))
 ifneq (,$(VALGRIND))
 	@$(CC) -g -DUNIT_TEST $(LDFLAGS) $(LOCALLIBS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest
 	@./unittest && ./unittest
 	@valgrind --leak-check=full --show-leak-kinds=all ./unittest
 	@$(RM) ./unittest gmon.out
 endif
+endif
 
 timetest:
-	$(CC) -g -Og -DTIMETEST -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t $(LDFLAGS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest && ./unittest
-	$(CC) -g -Og -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t $(LDFLAGS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest && ./unittest
-	$(CC) -g -Og -DLSEARCH -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t $(LDFLAGS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest && ./unittest
+ifneq (,$(wildcard test.c))
+	$(CC) -DTIMETEST -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t $(LDFLAGS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest && ./unittest
+	$(CC) -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t $(LDFLAGS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest && ./unittest
+	$(CC) -DLSEARCH -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t $(LDFLAGS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest && ./unittest
+	@$(RM) ./unittest gmon.out
 endif
 
 # Optional build utilitties
@@ -114,9 +124,9 @@ ifneq (,$(CTAGS))
 endif
 endif
 
-docs: $(shell find . -name \*.c ) $(shell find . -name \*.h )
+docs:
 ifneq (,$(DOXYGEN))
-	@$(DOXYGEN)
+	$(DOXYGEN)
 endif
 
-.PHONY: all debug clean force test memtest timetest
+.PHONY: all debug clean force test memtest timetest docs

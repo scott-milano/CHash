@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
-all clean debug install test memtest timetest:
+all clean debug install tags docs test memtest timetest:
 	make -C src $@
 
+.PHONY: all debug clean force test memtest timetest docs
