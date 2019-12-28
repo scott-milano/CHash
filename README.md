@@ -2,6 +2,8 @@
 
 Dynamic Lists/Hashes in C
 
+**Note:** This library is very lightly tested (with the included unit test) and should not be depended upon in production/critical code.
+
 This library provides dynamic Lists and Hashes in C using macro generated static functions.  This provides basic type checking in the compiler and protects against minor type mismatches.
 
 These types of structures are available in more advanced languages, but missed in C.
@@ -18,10 +20,29 @@ This library has the following features currently or in development.
 
 - Thread safe:  List access is mutex protected
 - Item Level Mutex: (In development) Lock/Unlock calls for individual entries
-- Binary Lookup: List is sorted and insert/retrival is 26 time faster (run make timetest)
+- Binary Lookup: List is sorted and insert/retrival is 26 time faster than a linear insert (run make timetest)
 - Linear Lookup: If list order is important and needs to be maintained, build with -DLSEARCH option.
 - Network Shared: (In development) List inserts and deletes can be broadcast via multicast
 - Key/Value: Types can be simple ordinal types or structures.  String keys are supported by the DEFINE\_HASH() macro.
+- Tested with Valgrind for memory leaks (run make memtest)
+
+## Build
+
+Build with simple: make
+
+    # make
+    
+Make install copies the output files from .../CHash/src to .../CHash/lib and .../CHash/include for linking.
+
+    # make install
+    
+Then when building your own executable add .../CHash/lib/libhash.a to the link line, and add -I.../CHash/include/ to CFLAGS
+
+    # gcc mymain.c ~/CHash/lib/libhash.a -I ~/CHash/include -lpthread -o myBinary
+
+Doxgen can be built with:
+
+    # make docs
 
 ## Usage
 
@@ -231,5 +252,97 @@ static inline bool LNameUnLock(LKeyType key)
 
 Set the mutex lock of a single list entry. 
 
+## Tests
 
+The following tests are included.  The memory test uses valgrind, (sudo apt install valgrind)
 
+### Unit Test
+    mypc(user)~/CHash$ make test
+    make -C src test
+    make[1]: Entering directory '/home/milano/CHash/src'
+    testLargeHash:979: Load count: 4000000 time: 0.002139 seconds
+
+    ALL TESTS PASSED
+    Tests run: 15 Time: 0.0830
+    make[1]: Leaving directory '/home/milano/CHash/src'
+ 
+ Look for "ALL TESTS PASSED"
+ 
+### Memory Leak Test
+
+    mypc(user)~/CHash$ make memtest
+    make -C src memtest
+    make[1]: Entering directory '/home/milano/CHash/src'
+    testLargeHash:979: Load count: 4000000 time: 0.002022 seconds
+
+    ALL TESTS PASSED
+    Tests run: 15 Time: 0.0855
+    testLargeHash:979: Load count: 4000000 time: 0.002023 seconds
+
+    ALL TESTS PASSED
+    Tests run: 15 Time: 0.0845
+    ==4601== Memcheck, a memory error detector
+    ==4601== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+    ==4601== Using Valgrind-3.13.0 and LibVEX; rerun with -h for copyright info
+    ==4601== Command: ./unittest
+    ==4601==
+    ==4601== error calling PR_SET_PTRACER, vgdb might block
+    testLargeHash:979: Load count: 4000000 time: 0.075594 seconds
+
+    ALL TESTS PASSED
+    Tests run: 15 Time: 0.6243
+    ==4601==
+    ==4601== HEAP SUMMARY:
+    ==4601==     in use at exit: 0 bytes in 0 blocks
+    ==4601==   total heap usage: 32,612 allocs, 32,612 frees, 1,276,805 bytes allocated
+    ==4601==
+    ==4601== All heap blocks were freed -- no leaks are possible
+    ==4601==
+    ==4601== For counts of detected and suppressed errors, rerun with: -v
+    ==4601== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+    make[1]: Leaving directory '/home/milano/CHash/src'
+
+Look for "ALL TESTS PASSED" and "All heap blocks were freed -- no leaks are possible"
+
+### Timing Test
+
+    mypc(user)~/CHash$ make timetest
+    make -C src timetest
+    make[1]: Entering directory '/home/milano/CHash/src'
+    gcc -DTIMETEST -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t -O2 -lpthread mcast.c test.c hash.c -Wall -O2 -lz -lpthread -o unittest && ./unittest
+    all_tests(1144) Start: Total: 2, Section: 0
+    testLargeHash(895) start: Total: 140682, Section: 140680
+    testLargeHash(915) First Set done: Total: 150093, Section: 9410
+    testLargeHash(926) Compare done: Total: 153100, Section: 3008
+    testLargeHash(942) Delete done: Total: 161112, Section: 8012
+    testLargeHash(944) Set allocated List again: Total: 161448, Section: 336
+    testLargeHash(955) Set List again: Total: 166884, Section: 5436
+    testLargeHash(958) Two Frees full list done: Total: 167683, Section: 799
+    testLargeHash(965) Complete: Total: 168973, Section: 1290
+    testLargeHash:979: Load count: 25000000 time: 0.009176 seconds
+
+    testThreadMain(1073) start: Total: 179812, Section: 826
+    testThreadMain(1081) Condition sent: Total: 182370, Section: 2558
+    test2Thread(1022) GO: Total: 0, Section: 0
+    test1Thread(1000) GO: Total: 0, Section: 0
+    test3Thread(1047) GO: Total: 0, Section: 0
+    test2Thread(1039) Complete: Total: 12351, Section: 12351
+    test3Thread(1063) Complete: Total: 12301, Section: 12301
+    test1Thread(1014) Complete: Total: 12319, Section: 12320
+    testThreadMain(1115) Done: Total: 200086, Section: 17716
+    all_tests(1162) End: Total: 200356, Section: 270
+    ALL TESTS PASSED
+    Tests run: 15 Time: 0.4689
+    gcc -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t -O2 -lpthread mcast.c test.c hash.c -Wall -O2 -lz -lpthread -o unittest && ./unittest
+    testLargeHash:979: Load count: 54989 time: 0.276119 seconds
+
+    ALL TESTS PASSED
+    Tests run: 15 Time: 0.4595
+    gcc -DLSEARCH -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t -O2 -lpthread mcast.c test.c hash.c -Wall -O2 -lz -lpthread -o unittest && ./unittest
+    testLargeHash:979: Load count: 54989 time: 5.352992 seconds
+
+    ALL TESTS PASSED
+    Tests run: 15 Time: 0.9584
+    make[1]: Leaving directory '/home/milano/CHash/src'
+
+This test is more for timing information, but it shows for 55,000 loops  the binary insert/search complete in 270ms.  Where the Linear insert/search takes 5353ms.  This is 20ish times faster.
