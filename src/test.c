@@ -742,32 +742,40 @@ static char *testHashFree()
 
 /* Test shared list */
 DEFINE_LIST(Test9,TK1,TV1);
+DEFINE_LIST(TestA,TK1,TV1);
+DEFINE_LIST(TestB,TK1,TV1);
 
 static char * testNetShare(void)
 {
     TK1 key1;
-    TK1 key9;
     TV1 expect1;
     TV1 result1;
+    TK1 key9;
     TV1 expect9;
     TV1 result9;
+    TV1 resultA;
+    TV1 resultB;
     bool ret;
 
     Test1Free();
-    DBUG_SW(true);
 
     Test1NetStart(6000);
     Test9NetStart(6000);
+    TestANetStart(6000);
+    TestBNetStart(6000);
 
     key1=1;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
     ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
-    PRINT("Count1: %d",Test1Count());
     mu_assert("Count increase",Test1Count()==(int) key1);
     usleep(10000);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
+    mu_assert("Count increase",TestACount()==(int) key1);
+    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
+    mu_assert("Count increase",TestBCount()==(int) key1);
+    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
 
     key1=2;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
@@ -776,16 +784,23 @@ static char * testNetShare(void)
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
+    mu_assert("Count increase",TestACount()==(int) key1);
+    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
+    mu_assert("Count increase",TestBCount()==(int) key1);
+    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
 
     key1=3;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
     ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
-    PRINT("Count1: %d",Test1Count());
     mu_assert("Count increase",Test1Count()==(int) key1);
     usleep(10000);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
+    mu_assert("Count increase",TestACount()==(int) key1);
+    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
+    mu_assert("Count increase",TestBCount()==(int) key1);
+    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
 
     key1=4;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
@@ -794,16 +809,23 @@ static char * testNetShare(void)
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
+    mu_assert("Count increase",TestACount()==(int) key1);
+    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
+    mu_assert("Count increase",TestBCount()==(int) key1);
+    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
 
     key1=5;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
     ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
-    PRINT("Count1: %d",Test1Count());
     mu_assert("Count increase",Test1Count()==(int) key1);
     usleep(10000);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
+    mu_assert("Count increase",TestACount()==(int) key1);
+    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
+    mu_assert("Count increase",TestBCount()==(int) key1);
+    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
 
     key1=6;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
@@ -812,17 +834,24 @@ static char * testNetShare(void)
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
+    mu_assert("Count increase",TestACount()==(int) key1);
+    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
+    mu_assert("Count increase",TestBCount()==(int) key1);
+    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
 
     g_count=6;
     key1=2;    expect1=key2value(key1+10);
     key9=key1; expect9=key2value(key9+10);
     ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
-    PRINT("Count1: %d",Test1Count());
     mu_assert("Count increase",Test1Count()==(int) g_count);
     usleep(10000);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) g_count);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
+    mu_assert("Count increase",TestACount()==(int) g_count);
+    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
+    mu_assert("Count increase",TestBCount()==(int) g_count);
+    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
 
     key1=3;    expect1=key2value(key1+10);
     key9=key1; expect9=key2value(key9+10);
@@ -831,11 +860,27 @@ static char * testNetShare(void)
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) g_count);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
+    mu_assert("Count increase",TestACount()==(int) g_count);
+    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
+    mu_assert("Count increase",TestBCount()==(int) g_count);
+    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
 
-
+    key1=3;g_count--;
+    ret=Test1Del(key1); mu_assert("Delete of key1 successful",ret);
+    usleep(10000);
+    mu_assert("Count decrease",Test1Count()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!Test1HasKey(key1));
+    mu_assert("Count decrease",Test9Count()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!Test9HasKey(key1));
+    mu_assert("Count decrease",TestACount()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestAHasKey(key1));
+    mu_assert("Count decrease",TestBCount()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestBHasKey(key1));
 
     Test1Free();
     Test9Free();
+    TestAFree();
+    TestBFree();
     return 0;
 }
 
@@ -1109,7 +1154,6 @@ static char * all_tests() {
     mu_run_test(testHashDel);
     mu_run_test(testForEach);
     mu_run_test(testHashFree);
-    DBUG_SW(true);
     mu_run_test(testNetShare);
     DBUG_SW(false);
     mu_run_test(testLargeHash);

@@ -413,7 +413,7 @@ bool _list_free(list_store_t *store)
     /* Check parameter */
     if (!store) return false;
 
-    if ((store->port)&&(store->index)) {
+    if ((store->port)&&(store->list)) {
         uint16_t port=store->port;
         char c=OP_NOP;
         store->port=0;
@@ -529,25 +529,45 @@ void *store_replication(void *vstore)
     dbg("Init Returned: %d",store->sock);
     if (store->sock<=0) return NULL;
 
-    store->rcv=malloc(size);
-    store->snd=malloc(size);
+    store->rcv=calloc(1,size);
+    store->snd=calloc(1,size);
     buf=store->rcv;
     op=buf;
     key=buf+1;
     value=key+store->key.size;
     while (store->port) {
         bytes=mcast_recv(store->sock,buf,size);
-        if (bytes>store->key.size) {
+        if (bytes>0) {
             switch (*op) {
                 case OP_SET:
+                    /* Exclude own packets */
                     if (memcmp(store->snd+1,store->rcv+1,size-1)!=0)  {
-                        eptr=hash_search(store,key,value);
-                        if (eptr) dbgentry(eptr);
-                        else dbg("Insert Failure");
+                        if (bytes==size) {
+                            pthread_mutex_lock(&store->lock);
+                            eptr=hash_search(store,key,value);
+                            pthread_mutex_unlock(&store->lock);
+                            if (eptr) dbgentry(eptr);
+                            else dbg("Insert Failure");
+                        } else {
+                            dbg("Size Error, op: %d, bytes: %d, size: %d",*op,bytes,size);
+                        }
+
                     }
                     break;
                 case OP_DEL:
-                    _list_remove(store,key);
+                    if (bytes>store->key.size) {
+                        int index;
+                        pthread_mutex_lock(&store->lock);
+                        index=find_index(store,key);
+                        dbgindex(index);
+                        if (index>=0) {
+                            delete_entry(store,index);
+                        }
+                        pthread_mutex_unlock(&store->lock);
+                    } else {
+                            dbg("Size Error, op: %d, bytes: %d, size: %lu",*op,
+                                    bytes,store->key.size+1);
+                    }
                     break;
                 case OP_NOP:
                     dbg("nop: %d %d, %d",bytes,size,store->sock);
@@ -559,19 +579,20 @@ void *store_replication(void *vstore)
         } else if (bytes==0) {
             dbg("Read not blocking");
             sleep(1);
-        } else if (bytes>0) {
-            printf("Undersized Packet: %d",bytes);
         } else {
             dbg("Error");
             sleep(1);
         }
     }
+    /* Free allocated buffers */
     if (store->rcv) free(store->rcv);
     store->rcv=NULL;
     if (store->snd) free(store->snd);
     store->snd=NULL;
+    /* Close socket */
     close(store->sock);
     store->sock=0;
+    dbg("Thread Closed");
     return NULL;
 }
 

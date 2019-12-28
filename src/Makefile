@@ -43,10 +43,10 @@ OBJECTS = $(addprefix $(OBJDIR)/,$(SOURCES:.c=.o))
 LIBS += -lz -lpthread
 ifeq ($(MAKECMDGOALS),debug)
 CFLAGS += -Wall -g -Og
-LDFLAGS += -g -pg -Og
+LDFLAGS += -g -pg -Og -lpthread
 else
 CFLAGS += -Wall -O2
-LDFLAGS += -O2
+LDFLAGS += -O2 -lpthread
 endif
 
 all: $(ARCHIVE) $(PROGRAM) tags

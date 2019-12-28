@@ -383,11 +383,11 @@ typedef char* STR;
  * ListSet(List,2);
  * ListSet(List,3);
  *
- * ListItem(2,@val);  // Returns true and sets val to 2
- * ListItem(4,@val);  // Returns false and sets val to 0
- * ListItem(-1,@val); // Returns false and sets val to 3
+ * ListItem(2,&val);  // Returns true and sets val to 2
+ * ListItem(4,&val);  // Returns false and sets val to 0
+ * ListItem(-1,&val); // Returns false and sets val to 3
  * ListFree();
- * ListItem(2,@val);  // Returns false and does not set val
+ * ListItem(2,&val);  // Returns false and does not set val
  * \endcode
  * @param(in) i Index of item
  * @param(out) val Pointer for list item return
@@ -480,7 +480,6 @@ typedef char* STR;
 #define LIST_FUNCTION_FREE(HN) \
     static inline bool HN##Free(void) \
     { \
-        HN##_store.port=0; \
         return _list_free(&HN##_store);\
     }
 
