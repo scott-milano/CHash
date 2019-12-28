@@ -257,14 +257,15 @@ Set the mutex lock of a single list entry.
 The following tests are included.  The memory test uses valgrind, (sudo apt install valgrind)
 
 ### Unit Test
+
     mypc(user)~/CHash$ make test
     make -C src test
-    make[1]: Entering directory '/home/milano/CHash/src'
+    make[1]: Entering directory '/home/user/CHash/src'
     testLargeHash:979: Load count: 4000000 time: 0.002139 seconds
 
     ALL TESTS PASSED
     Tests run: 15 Time: 0.0830
-    make[1]: Leaving directory '/home/milano/CHash/src'
+    make[1]: Leaving directory '/home/user/CHash/src'
  
  Look for "ALL TESTS PASSED"
  
@@ -272,7 +273,7 @@ The following tests are included.  The memory test uses valgrind, (sudo apt inst
 
     mypc(user)~/CHash$ make memtest
     make -C src memtest
-    make[1]: Entering directory '/home/milano/CHash/src'
+    make[1]: Entering directory '/home/user/CHash/src'
     testLargeHash:979: Load count: 4000000 time: 0.002022 seconds
 
     ALL TESTS PASSED
@@ -300,7 +301,7 @@ The following tests are included.  The memory test uses valgrind, (sudo apt inst
     ==4601==
     ==4601== For counts of detected and suppressed errors, rerun with: -v
     ==4601== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
-    make[1]: Leaving directory '/home/milano/CHash/src'
+    make[1]: Leaving directory '/home/user/CHash/src'
 
 Look for "ALL TESTS PASSED" and "All heap blocks were freed -- no leaks are possible"
 
@@ -308,7 +309,7 @@ Look for "ALL TESTS PASSED" and "All heap blocks were freed -- no leaks are poss
 
     mypc(user)~/CHash$ make timetest
     make -C src timetest
-    make[1]: Entering directory '/home/milano/CHash/src'
+    make[1]: Entering directory '/home/user/CHash/src'
     gcc -DTIMETEST -DUNIT_TEST -DMAXSIZE=5000 -DTK1=int64_t -DTV1=int64_t -O2 -lpthread mcast.c test.c hash.c -Wall -O2 -lz -lpthread -o unittest && ./unittest
     all_tests(1144) Start: Total: 2, Section: 0
     testLargeHash(895) start: Total: 140682, Section: 140680
@@ -343,6 +344,6 @@ Look for "ALL TESTS PASSED" and "All heap blocks were freed -- no leaks are poss
 
     ALL TESTS PASSED
     Tests run: 15 Time: 0.9584
-    make[1]: Leaving directory '/home/milano/CHash/src'
+    make[1]: Leaving directory '/home/user/CHash/src'
 
 This test is more for timing information, but it shows for 55,000 loops  the binary insert/search complete in 270ms.  Where the Linear insert/search takes 5353ms.  This is 20ish times faster.
