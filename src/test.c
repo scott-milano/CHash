@@ -966,17 +966,17 @@ static char * testLargeHash(void)
 
     /* Set items and ensure count is correct */
     {
-        int j=0,c;
+        int cnt=0,j=0,c;
         max=Test5Count();
-        c=2;
+        c=11;
         h=0;
         usecelapsed();
         for (i=0;i<c;i++) for (j=1;j<max;j++) {
             Test5Get(max-j,&h);
             Test6Set(h+i,h+i+j);
-            //PRINT("New: %x=%x",h+i,h+i+j);
+            cnt++;
         }
-        PRINT("Load count: %d time: %0.6lf seconds\n",max*max,((double) usecelapsed())/1000000.0);
+        PRINT("Load count: %d time: %0.6lf seconds\n",cnt,((double) usecelapsed())/1000000.0);
     }
     Test6Free();
     return 0;
