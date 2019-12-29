@@ -14,7 +14,32 @@
 # limitations under the License.
 #
 
-all clean debug install tags docs test memtest timetest:
-	make -C src $@
+# Find utilities
+CTAGS   ?= $(shell command -v ctags;)
+CSCOPE  ?= $(shell command -v cscope;)
+
+# Find Makefiles
+MKFLS += $(subst Makefile,,$(shell find */ -name Makefile ))
+
+TOP=$(abspath .)
+export TOP
+
+all debug install docs test memtest timetest: tags
+	@$(foreach folder,$(MKFLS), $(MAKE) -C $(folder) $@ || exit;)
+
+clean:
+	@$(foreach folder,$(MKFLS), $(MAKE) -C $(folder) $@ || exit;)
+	@rm -rf tags cscope.out bin lib include
+
+# Optional build utilitties
+tags:
+	@$(foreach folder,$(MKFLS), $(MAKE) -C $(folder) $@ || exit;)
+ifneq (,$(CSCOPE))
+	@$(CSCOPE) -Rb
+else
+ifneq (,$(CTAGS))
+	@$(CTAGS) -R
+endif
+endif
 
 .PHONY: all debug clean force test memtest timetest docs

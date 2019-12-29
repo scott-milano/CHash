@@ -37,9 +37,13 @@ RM = rm -rf
 # Flags for archive
 ARFLAGS = -rv
 
+TOP ?= $(abspath ..)
+INSTALL = $(TOP)
+INCINSTALL = $(INSTALL)/include
+BININSTALL = $(INSTALL)/bin
+LIBINSTALL = $(INSTALL)/lib
+
 OBJDIR = obj
-INCLUDE = ../include
-INSTALL = ../lib
 SOURCES = $(wildcard *.c)
 OBJECTS = $(addprefix $(OBJDIR)/,$(SOURCES:.c=.o))
 LIBS += -lz -lpthread
@@ -84,10 +88,18 @@ $(OBJDIR)/%.o:  %.c
 	$(CC) $(CFLAGS) -c -MMD -MP -o $@ $<
 
 install: all
-	@[ -d $(INSTALL) ] || mkdir -p $(INSTALL)
-	cp -f $(ARCHIVE) $(INSTALL)
-	@[ -d $(INCLUDE) ] || mkdir -p $(INCLUDE)
-	cp -f $(HEADER) $(INCLUDE)
+ifneq (,$(PROGRAM))
+	@[ -d $(BININSTALL) ] || mkdir -p $(BININSTALL)
+	cp -f $(PROGRAM) $(BININSTALL)
+endif
+ifneq (,$(ARCHIVE))
+	@[ -d $(LIBINSTALL) ] || mkdir -p $(LIBINSTALL)
+	cp -f $(ARCHIVE) $(LIBINSTALL)
+endif
+ifneq (,$(HEADER))
+	@[ -d $(INCINSTALL) ] || mkdir -p $(INCINSTALL)
+	cp -f $(HEADER) $(INCINSTALL)
+endif
 
 test:
 ifneq (,$(wildcard test.c))
@@ -115,7 +127,7 @@ ifneq (,$(wildcard test.c))
 endif
 
 # Optional build utilitties
-tags: $(shell find . -name \*.c ) $(shell find . -name \*.h )
+tags:
 ifneq (,$(CSCOPE))
 	@$(CSCOPE) -Rb
 else
@@ -129,4 +141,4 @@ ifneq (,$(DOXYGEN))
 	$(DOXYGEN)
 endif
 
-.PHONY: all debug clean force test memtest timetest docs
+.PHONY: all debug clean force test memtest timetest docs tags
