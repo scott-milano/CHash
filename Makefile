@@ -21,7 +21,7 @@ CSCOPE  ?= $(shell command -v cscope;)
 # Find Makefiles
 MKFLS += $(subst Makefile,,$(shell find */ -name Makefile ))
 
-TOP=$(abspath .)
+TOP ?= $(abspath .)
 export TOP
 
 all debug install docs test memtest timetest: tags

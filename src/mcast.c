@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <errno.h>
 #include <pthread.h>
 
 
@@ -85,6 +86,9 @@ int mcast_init(uint16_t port)
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);         
     if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,&mreq, sizeof(mreq)) < 0) {
         perror("setsockopt mreq");
+        /* No such device error? Add multicast route.
+         * sudo route add -net 224.0.0.0 netmask 224.0.0.0 eth0
+         */
         close(sock);
         pthread_mutex_unlock(&lock);
         return -1;
@@ -94,22 +98,23 @@ int mcast_init(uint16_t port)
     return sock;
 }
 
-int mcast_recv(int sock, uint8_t *buf, int size)
+int mcast_recv(int sock, uint8_t *buf, int size,int opt)
 {
     socklen_t addrlen;
     int bytes;
     struct sockaddr_in addr;
     addrlen = sizeof(addr);
 
-    bytes = recvfrom(sock, buf, size, 0,(struct sockaddr *) &addr, &addrlen);
+    bytes = recvfrom(sock, buf, size, opt,(struct sockaddr *) &addr, &addrlen);
     if (bytes < 0) {
-         perror("recvfrom");
+        if (errno==EAGAIN) bytes=0;
+        else perror("recvfrom");
     }
 
     return bytes;
 }
 
-int mcast_send(int sock,uint16_t port, uint8_t *buf, int size)
+int mcast_send(int sock,uint16_t port, uint8_t *buf, int size,int opt)
 {
     socklen_t addrlen;
     int bytes;
@@ -119,7 +124,7 @@ int mcast_send(int sock,uint16_t port, uint8_t *buf, int size)
     /* Set port */
     mcAddr.sin_port = htons(port);
     /* send */
-    bytes = sendto(sock,buf,size, 0,(struct sockaddr *) &mcAddr, addrlen);
+    bytes = sendto(sock,buf,size, opt,(struct sockaddr *) &mcAddr, addrlen);
     if (bytes < 0) {
         perror("sendto");
     }

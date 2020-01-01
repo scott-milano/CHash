@@ -13,24 +13,30 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Header file for mcast replication of the Hash
+ *
+ * @addtogroup HASH
  * @{
  */
  
-#ifndef __MCAST_H__
-#define __MCAST_H__
+#ifndef __REPLICATOR_H__
+#define __REPLICATOR_H__
 
 #include<stdint.h>
+#include "entry.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int mcast_init(uint16_t port);
-int mcast_recv(int sock, void *buf, int size,int opt);
-int mcast_send(int sock,uint16_t port, void *buf, int size,int opt);
+bool repl_start(list_store_t *store);
+bool repl_update(list_store_t *store,_entry_t *eptr);
+bool repl_remove(list_store_t *store,void *keyref);
+void repl_close(list_store_t *store);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* __MCAST_H__ */
+#endif /* __REPLICATOR_H__ */
 /**@}*/

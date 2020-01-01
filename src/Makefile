@@ -16,7 +16,7 @@
 
 PROGRAM =
 ARCHIVE	= libhash.a
-HEADER	= hash.h
+HEADER	= hash.h dbg.h
 
 # Optional executables
 DOXYGEN ?= $(shell command -v /usr/local/bin/doxygen;)
@@ -34,45 +34,80 @@ CC = $(CROSS_COMPILE)gcc
 AR = $(CROSS_COMPILE)ar
 RM = rm -rf
 
+# Support cross compile, this becomes the extension for cross compiles
+MARCH=$(shell echo | $(CC) -v -E - 2>&1 | grep cc1 | sed -e 's/.*march=//' | cut -d\  -f1)
+
 # Flags for archive
 ARFLAGS = -rv
 
+# Place all build output in this folder
+BUILDDIR = $(abspath build)
+
+# Select install folders based on "TOP" from parent make file
 TOP ?= $(abspath ..)
 INSTALL = $(TOP)
 INCINSTALL = $(INSTALL)/include
+
+# Change output/install location on cross compile
+ifeq (,$(CROSS_COMPILE))
+ifneq (,$(PROGRAM))
+PROGRAMOUT = $(BUILDDIR)/$(PROGRAM)
+endif
 BININSTALL = $(INSTALL)/bin
 LIBINSTALL = $(INSTALL)/lib
+else
+ifneq (,$(PROGRAM))
+PROGRAMOUT = $(BUILDDIR)/$(MARCH)/$(PROGRAM)
+endif
+BININSTALL = $(INSTALL)/bin_$(MARCH)
+LIBINSTALL = $(INSTALL)/lib_$(MARCH)
+endif
 
-OBJDIR = obj
-SOURCES = $(wildcard *.c)
-OBJECTS = $(addprefix $(OBJDIR)/,$(SOURCES:.c=.o))
-LIBS += -lz -lpthread
+# Set output location for archive if it exists
+ifneq (,$(ARCHIVE))
+ARCHIVEOUT = $(BUILDDIR)/$(MARCH)/$(ARCHIVE)
+endif
+
+CFLAGS = -I$(INCINSTALL)
+LDFLAGS = -L$(LIBINSTALL)
+LIBS += -lpthread
 ifeq ($(MAKECMDGOALS),all)
+TARGET=release
 CFLAGS += -Wall -O2
 LDFLAGS += -O2 -lpthread
 else ifeq ($(MAKECMDGOALS),timetest)
 CFLAGS += -Wall -O2
 LDFLAGS += -O2 -lpthread
 else
-CFLAGS += -Wall -Og
-LDFLAGS += -Og -lpthread
+TARGET=debug
+CFLAGS += -Wall -g
+LDFLAGS += -lpthread -g
+ifneq ($(MARCH),armv5te)
+CFLAGS += -Og
+LDFLAGS += -Og
+endif
 endif
 
-all: $(ARCHIVE) $(PROGRAM) tags
+# Build files
+OBJDIR = $(BUILDDIR)/$(MARCH)/$(TARGET)
+SOURCES = $(wildcard *.c)
+OBJECTS = $(addprefix $(OBJDIR)/,$(SOURCES:.c=.o))
 
-debug: $(ARCHIVE) $(PROGRAM)
+all: $(ARCHIVEOUT) $(PROGRAMOUT) tags
+
+debug: $(ARCHIVEOUT) $(PROGRAMOUT)
 
 
 # Clean up output
 clean:
-	-$(RM) $(OBJECTS) $(OBJECTS:.o=.d) $(ARCHIVE) $(PROGRAM)
-	-$(RM) tags cscope.out ../docs/ $(OBJDIR)/
+	-$(RM) $(OBJECTS) $(OBJECTS:.o=.d) $(ARCHIVEOUT) $(PROGRAMOUT)
+	-$(RM) tags cscope.out ../docs/ $(BUILDDIR)/
 
-$(PROGRAM): $(OBJECTS)
+$(PROGRAMOUT): $(OBJECTS)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(CC) -o $@ $(OBJECTS) $(LDFLAGS) $(LOCALLIBS) $(LIBS)
 
-$(ARCHIVE): $(OBJECTS)
+$(ARCHIVEOUT): $(OBJECTS)
 	@echo 'Building target: $@ from $(OBJECTS)'
 	@echo 'Invoking: AR Archiver'
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
@@ -90,11 +125,11 @@ $(OBJDIR)/%.o:  %.c
 install: all
 ifneq (,$(PROGRAM))
 	@[ -d $(BININSTALL) ] || mkdir -p $(BININSTALL)
-	cp -f $(PROGRAM) $(BININSTALL)
+	cp -f $(PROGRAMOUT) $(BININSTALL)
 endif
 ifneq (,$(ARCHIVE))
 	@[ -d $(LIBINSTALL) ] || mkdir -p $(LIBINSTALL)
-	cp -f $(ARCHIVE) $(LIBINSTALL)
+	cp -f $(ARCHIVEOUT) $(LIBINSTALL)
 endif
 ifneq (,$(HEADER))
 	@[ -d $(INCINSTALL) ] || mkdir -p $(INCINSTALL)
@@ -111,8 +146,7 @@ endif
 memtest:
 ifneq (,$(wildcard test.c))
 ifneq (,$(VALGRIND))
-	@$(CC) -g -DUNIT_TEST $(LDFLAGS) $(LOCALLIBS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest
-	@./unittest && ./unittest
+	@$(CC) -g -DUNIT_TEST -DMEM_TEST $(LDFLAGS) $(LOCALLIBS) $(SOURCES) $(CFLAGS) $(LIBS) -o unittest
 	@valgrind --leak-check=full --show-leak-kinds=all ./unittest
 	@$(RM) ./unittest gmon.out
 endif

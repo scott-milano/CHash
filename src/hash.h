@@ -36,13 +36,8 @@
 extern "C" {
 #endif
 
-#define HDEBUG
-#ifdef HDEBUG
-extern bool g_debug;
-#define DBUG_SW(F) g_debug=F
-#else
-#define DBUG_SW(F)
-#endif
+//#define HDEBUG
+#include "dbg.h"
 
 
 /* Forward declaration */
@@ -52,6 +47,9 @@ typedef struct list_store list_store_t;
 struct list_type_info;
 typedef struct list_type_info list_type_info_t;
 
+struct repl_info;
+typedef struct repl_info repl_info_t;
+
 /* Function pointer typedefs */
 /** Search function for list/hash */
 //typedef void* (*_list_search_fn_t)(list_store_t*,void*,void*);
@@ -59,10 +57,10 @@ typedef struct list_type_info list_type_info_t;
 typedef void* (*_list_alloc_fn_t)(const void*);
 /** Access function for copy of value */
 typedef void* (*_list_copy_fn_t)(void *,const void*);
+/** Returns size of type, for varible sized types (strings) */
+typedef size_t (*_list_size_fn_t)(const void*);
 /** Debug print function */
 typedef char* (*_list_print_fn_t)(const list_type_info_t*, const void*);
-
-//typedef size_t (*_list_size_fn_t)(const void*);
 
 /** @brief Internal function, do not access directly */
 //void *hash_search(list_store_t *store,void *keyref,void *valref);
@@ -75,11 +73,13 @@ bool _list_copy(list_store_t *store,void *keyref,void *value);
 bool _list_items(list_store_t *store,int index,void *key,void *value);
 int  _list_index(list_store_t *store,void *keyref);
 bool _list_insert(list_store_t *store,void *keyref,void *value);
+bool _list_netstart(list_store_t *store, uint16_t port);
 bool _list_free(list_store_t *store);
 bool _list_remove(list_store_t *store,void *keyref);
 bool _list_lock(list_store_t *store,void *keyref,bool lock);
 static inline int _index_wrap(int i,size_t m);
-void *store_replication(void *vstore);
+/* Replication Thread Function */
+
 /**
  * @addtogroup HASH
  * @{
@@ -90,12 +90,13 @@ void *store_replication(void *vstore);
  * even a deep copy
  */
 struct list_type_info {
-    char *name;                 /**< Name of type */
+    const char *name;           /**< Name of type */
     size_t size;                /**< Size of type */
     __compar_fn_t cmp;          /**< Comparison function for sorts/searches */
     _list_alloc_fn_t alloc;     /**< Allocation function */
     _list_copy_fn_t cp;         /**< Access method for custom copy */
-    _list_print_fn_t print;     /**< Access method for custom copy */
+    _list_size_fn_t sz;         /**< Access method for type size */
+    _list_print_fn_t print;     /**< Access method for custom print */
 };
 
 /**
@@ -104,19 +105,18 @@ struct list_type_info {
  * a generic list
  */
 struct list_store {
-    void *list;             /**< Hash storage pointer */
-    char *name;
-    int imax;               /**< Initial max size */
-    int max;                /**< Current max size */
-    size_t index;           /**< Index for next new item */
-    size_t size;            /**< Size of a complete Key/Value item */
-    uint16_t port;          /**< Port for network replication */
-    int sock;               /**< Socket for network replication */
-    uint8_t *snd;           /**< Buffer for network tx */
-    uint8_t *rcv;           /**< Buffer for network rx */
-    list_type_info_t key;   /**< Key info and callbacks */
-    list_type_info_t value; /**< Value info and callbacks */
-    pthread_mutex_t lock;   /**< Lock for list list access */
+    const char *name;           /**< Name of hash */
+    void *list;                 /**< Hash storage pointer */
+    int imax;                   /**< Initial max size */
+    int max;                    /**< Current max size */
+    size_t index;               /**< Index for next new item */
+    size_t size;                /**< Size of a complete Key/Value item */
+    uint16_t port;              /**< Port for network replication */
+    pthread_t nethandle;        /**< Handle for network thread */
+    repl_info_t *net;           /**< Information on the network service */
+    list_type_info_t key;       /**< Key info and callbacks */
+    list_type_info_t value;     /**< Value info and callbacks */
+    pthread_mutex_t lock;       /**< Lock for list list access */
 };
 
 /** String key value support:
@@ -134,9 +134,10 @@ typedef char* STR;
  */
 #define DEFINE_LIST(HN,HK,HV) \
     LIST_KEYTYPE(HN,HK) \
+    LIST_TYPEFN(HN##_k) \
     LIST_VALTYPE(HN,HV) \
-    static list_store_t HN##_store={.name=#HN,.lock=PTHREAD_MUTEX_INITIALIZER,\
-        .key=LIST_TYPEINFO(HK,HN##_k),.value=LIST_TYPEINFO(HV,HN##_v),}; \
+    LIST_TYPEFN(HN##_v) \
+    static DECLARE_LIST(HN) \
     static HN##_v HN##_zero; \
     LIST_FUNCTION_GET(HN,&key) \
     LIST_FUNCTION_SET(HN,&key) \
@@ -160,10 +161,70 @@ typedef char* STR;
  * @copydetails HASH
  */
 #define DEFINE_HASH(HN,HV) \
-    HASH_KEYTYPE(HN,STR) \
+    LIST_KEYTYPE(HN,STR) \
+    HASH_TYPEFN(HN##_k) \
     LIST_VALTYPE(HN,HV) \
-    static list_store_t HN##_store={.name=#HN,.lock=PTHREAD_MUTEX_INITIALIZER,\
-        .key=LIST_TYPEINFO(STR,HN##_k),.value=LIST_TYPEINFO(HV,HN##_v),}; \
+    LIST_TYPEFN(HN##_v) \
+    static DECLARE_LIST(HN) \
+    static HN##_v HN##_zero; \
+    LIST_FUNCTION_GET(HN,key) \
+    LIST_FUNCTION_SET(HN,key) \
+    LIST_FUNCTION_PTR(HN,key) \
+    LIST_FUNCTION_VAL(HN,key) \
+    LIST_FUNCTION_COUNT(HN) \
+    LIST_FUNCTION_KEYS(HN,&key) \
+    LIST_FUNCTION_ITEM(HN) \
+    LIST_FUNCTION_INDEX(HN,key) \
+    LIST_FUNCTION_HASKEY(HN,key) \
+    LIST_FUNCTION_DEL(HN,key) \
+    LIST_FUNCTION_FREE(HN) \
+    LIST_FUNCTION_NETSTART(HN) \
+
+
+/**
+ * @brief List reference macro
+ * This macro creates a global version of the list/hash that can be accessed throught
+ * an application.
+ * @param HN Hash name prefix.  Accessor functions begin with this name
+ * @param HK Type for list key.  Must be a defined type, and not a pointer to a type.
+ * @param HV Type for list value.  Must be a defined type, and not a pointer to a type.
+ * Hash starts with 30 items and increases as needed
+ * @copydetails HASH
+ */
+#define EXTERN_LIST(HN,HK,HV) \
+    LIST_KEYTYPE(HN,HK) \
+    LIST_TYPEFN(HN##_k) \
+    LIST_VALTYPE(HN,HV) \
+    LIST_TYPEFN(HN##_v) \
+    extern list_store_t HN##_store; \
+    static HN##_v HN##_zero; \
+    LIST_FUNCTION_GET(HN,&key) \
+    LIST_FUNCTION_SET(HN,&key) \
+    LIST_FUNCTION_PTR(HN,&key) \
+    LIST_FUNCTION_VAL(HN,&key) \
+    LIST_FUNCTION_COUNT(HN) \
+    LIST_FUNCTION_KEYS(HN,key) \
+    LIST_FUNCTION_ITEM(HN) \
+    LIST_FUNCTION_INDEX(HN,&key) \
+    LIST_FUNCTION_HASKEY(HN,&key) \
+    LIST_FUNCTION_DEL(HN,&key) \
+    LIST_FUNCTION_FREE(HN) \
+    LIST_FUNCTION_NETSTART(HN) \
+
+/**
+ * @brief Hash generation macro
+ * @param HN Hash name prefix.  Accessor functions begin with this name
+ * @param HV Type for list value.  Must be a defined type, and not a pointer to a type.
+ * Key type for this list type is a variable length string
+ * Hash starts with 30 items and increases as needed
+ * @copydetails HASH
+ */
+#define EXTERN_HASH(HN,HV) \
+    LIST_KEYTYPE(HN,STR) \
+    HASH_TYPEFN(HN##_k) \
+    LIST_VALTYPE(HN,HV) \
+    LIST_TYPEFN(HN##_v) \
+    extern list_store_t HN##_store; \
     static HN##_v HN##_zero; \
     LIST_FUNCTION_GET(HN,key) \
     LIST_FUNCTION_SET(HN,key) \
@@ -178,13 +239,32 @@ typedef char* STR;
     LIST_FUNCTION_KEYS(HN,&key)
 
 /**
+ * @brief List and Hash storage structure creation macro
+ * Creates the list storage data structure for list/hash access. 
+ * Can be used to create a global version of the hash structure
+ * @param HN Hash name prefix.  Accessor functions begin with this name
+ * Key type for this list type is a variable length string
+ * Hash starts with 30 items and increases as needed
+ * @copydetails HASH
+ */
+#define DECLARE_LIST(HN) \
+    list_store_t HN##_store={.name=#HN,.lock=PTHREAD_MUTEX_INITIALIZER,\
+        .key=LIST_TYPEINFO(HN##_k),.value=LIST_TYPEINFO(HN##_v), \
+};
+/** Internal macro used by DECLARE_LIST */
+#define LIST_TYPEINFO(KT) {.name=KT##_name,.size=sizeof(KT), \
+    .cmp=KT##_cmp, .alloc=KT##_alloc, .cp=KT##_cp, .sz=KT##_sz,\
+}
+
+/**
  * Macro to generate handler functions for key.
  * @param HN List name
  * @param KT key type
  */
 #define LIST_KEYTYPE(HN,KT) \
     typedef KT HN##_k; \
-    LIST_TYPEFN(HN##_k)
+    const char HN##_k_name[]=#KT; \
+
 /**
  * Macro to generate handler functions for value.
  * @param HN List name
@@ -192,7 +272,7 @@ typedef char* STR;
  */
 #define LIST_VALTYPE(HN,KT) \
     typedef KT HN##_v; \
-    LIST_TYPEFN(HN##_v)
+    const char HN##_v_name[]=#KT; \
 
 /**
  * Default callbacks for entries
@@ -200,6 +280,7 @@ typedef char* STR;
  * @param KT key/val type
  * - cmp with memcmp
  * - cp with memcpy
+ * - sz with constant
  * - allocate with calloc and copy to dst with memcpy
  */
 #define LIST_TYPEFN(KT) \
@@ -210,6 +291,10 @@ typedef char* STR;
     static void *KT##_cp(void *dst, const void *src) \
     { \
         return memcpy(dst,src,sizeof(KT));\
+    } \
+    static size_t KT##_sz(const void *src) \
+    { \
+        return sizeof(KT);\
     } \
     static void *KT##_alloc(const void *src) \
     { \
@@ -227,9 +312,6 @@ typedef char* STR;
  * - cp with strcpy
  * - allocate variable size of strlen+1
  */
-#define HASH_KEYTYPE(HN,KT) \
-    typedef KT HN##_k; \
-    HASH_TYPEFN(HN##_k)
 #define HASH_TYPEFN(KT) \
     static int KT##_cmp(const void *m1, const void *m2) \
     {\
@@ -239,8 +321,13 @@ typedef char* STR;
     {\
         size_t sz=strnlen((char*)src,HASH_MAX_STR);\
         assert(sz<HASH_MAX_STR);\
-        return strncpy(*((char **)dst), *((char **)src), sz+1);\
+        return strncpy(((char *)dst), ((char *)src), sz+1);\
     }\
+    static size_t KT##_sz(const void *src) \
+    {   /* Call with NULL to get max possible size */ \
+        if (src) return strnlen((char*)src,HASH_MAX_STR)+1;\
+        else return HASH_MAX_STR;\
+    } \
     static void *KT##_alloc(const void *src) \
     {\
         size_t sz=strnlen((char*)src,HASH_MAX_STR);\
@@ -250,8 +337,6 @@ typedef char* STR;
         else return NULL; \
     }
 
-#define LIST_TYPEINFO(KN,KT) {.name=#KN,.size=sizeof(KT), \
-    .cmp=KT##_cmp, .alloc=KT##_alloc, .cp=KT##_cp,}
 
 /* Access methods */
 /**
@@ -266,7 +351,8 @@ typedef char* STR;
  * \endcode
  */
 #define LIST_FUNCTION_GET(HN,KEY) \
-    static inline bool HN##Get(HN##_k key,HN##_v *value) { \
+    static inline bool HN##Get(HN##_k key,HN##_v *value) \
+    { \
         return _list_copy(&HN##_store, KEY, value); \
     }
 
@@ -283,7 +369,8 @@ typedef char* STR;
  * 
  */
 #define LIST_FUNCTION_SET(HN,KEY) \
-    static inline bool HN##Set(HN##_k key,HN##_v value) { \
+    static inline bool HN##Set(HN##_k key,HN##_v value) \
+    { \
         return _list_insert(&HN##_store, KEY, &value); \
     }
 
@@ -299,7 +386,8 @@ typedef char* STR;
  * 
  */
 #define LIST_FUNCTION_PTR(HN,KEY) \
-    static inline HN##_v *HN##Ptr(HN##_k key) { \
+    static inline HN##_v *HN##Ptr(HN##_k key) \
+    { \
         return _list_reference(&HN##_store, KEY); \
     }
 
@@ -336,7 +424,8 @@ typedef char* STR;
  *
  */
 #define LIST_FUNCTION_COUNT(HN) \
-    static inline int HN##Count(void) { \
+    static inline int HN##Count(void) \
+    { \
         return HN##_store.index; \
     }
 
@@ -351,7 +440,8 @@ typedef char* STR;
  * \endcode
  */
 #define LIST_FUNCTION_KEYS(HN,KEY) \
-    static inline HN##_k HN##Keys(int i) {  \
+    static inline HN##_k HN##Keys(int i) \
+    {  \
         HN##_k kval; \
         HN##_k *key=_list_keyref(&HN##_store,i);\
         if (!key) { \
@@ -462,9 +552,43 @@ typedef char* STR;
  * 
  */
 #define LIST_FUNCTION_DEL(HN,KEY) \
-    static inline bool HN##Del(HN##_k key) { \
+    static inline bool HN##Del(HN##_k key) \
+    { \
         return _list_remove(&HN##_store,KEY); \
     }
+
+/**
+ * @par ListLock static inline bool LNameLock(LKeyType key)\n
+ * static inline bool LNameUnLock(LKeyType key)
+ * Set the mutex lock of a single list entry.  Enabled with @ref LIST_ENTRY_LOCK
+ */
+#define LIST_FUNCTION_LOCK(HN,KEY) \
+    static inline bool HN##Lock(HN##_k key) \
+    { \
+        _list_lock(&HN##_store,KEY,false); \
+    }\
+    static inline bool HN##Unlock(HN##_k key) \
+    { \
+        _list_lock(&HN##_store,KEY,false); \
+    }
+
+/**
+ * @par ListNetStart static inline bool LNameNetStart(uint16_t port)
+ * Sets the port number for multicast packets and starts the sharing
+ * thread.  Thread is closed when free is called.
+ * @param port Port for network sharing.
+ * @return true on successful start, false on failure or if already
+ * running.
+ * \code{.c}
+ * ListNetStart(6500);
+ * \endcode
+ * 
+ */
+#define LIST_FUNCTION_NETSTART(HN) \
+    static inline bool HN##NetStart(uint16_t port) \
+    { \
+        return _list_netstart(&HN##_store,port); \
+    }\
 
 /**
  * @par ListFree static inline bool LNameFree(void)
@@ -483,37 +607,6 @@ typedef char* STR;
         return _list_free(&HN##_store);\
     }
 
-/**
- * @par ListLock static inline bool LNameLock(LKeyType key)\n
- * static inline bool LNameUnLock(LKeyType key)
- * Set the mutex lock of a single list entry.  Enabled with @ref LIST_ENTRY_LOCK
- */
-#define LIST_FUNCTION_LOCK(HN,KEY) \
-    static inline bool HN##Lock(HN##_k key) { \
-        _list_lock(&HN##_store,KEY,false); \
-    }\
-    static inline bool HN##Unlock(HN##_k key) { \
-        _list_lock(&HN##_store,KEY,false); \
-    }
-
-/**
- * @par ListLock static inline bool LNameLock(LKeyType key)\n
- * static inline bool LNameUnLock(LKeyType key)
- * Set the mutex lock of a single list entry.  Enabled with @ref LIST_ENTRY_LOCK
- */
-#define LIST_FUNCTION_NETSTART(HN) \
-    static pthread_t HN##_Handle; \
-    static inline bool HN##NetStart(uint16_t port) { \
-        if (HN##_store.port) { \
-            if (HN##_store.port==port) return true; \
-            else return false; \
-        } \
-        HN##_store.port=port; \
-        pthread_create(&HN##_Handle, NULL, store_replication,(void*)&HN##_store); \
-        pthread_detach(HN##_Handle); \
-        while (HN##_store.sock==0) usleep(1000); \
-        return true; \
-    }\
 
 /* Need extra macro layer for MKI(__LINE__) to work */
 #define MKIPRE(i) I##i

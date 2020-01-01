@@ -22,7 +22,7 @@ This library has the following features currently or in development.
 - Item Level Mutex: (In development) Lock/Unlock calls for individual entries
 - Binary Lookup: List is sorted and insert/retrival is 26 time faster than a linear insert (run make timetest)
 - Linear Lookup: If list order is important and needs to be maintained, build with -DLSEARCH option.
-- Network Shared: (In development) List inserts and deletes can be broadcast via multicast
+- Network Shared: List inserts and deletes can be broadcast via multicast. New joins get updated with latest data.
 - Key/Value: Types can be simple ordinal types or structures.  String keys are supported by the DEFINE\_HASH() macro.
 - Tested with Valgrind for memory leaks (run make memtest)
 

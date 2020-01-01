@@ -59,6 +59,8 @@
  * <hr>
  * @copydetails LIST_FUNCTION_DEL
  * <hr>
+ * @copydetails LIST_FUNCTION_NETSTART
+ * <hr>
  * @copydetails LIST_FUNCTION_FREE
  * <hr>
  * @copydetails LIST_FUNCTION_LOCK
@@ -75,97 +77,28 @@
 #include<unistd.h>
 #include<assert.h>
 
-#include "mcast.h"
 #include "hash.h"
+#include "repl.h"
+#include "entry.h"
 
-/**@}*/
 #ifdef HDEBUG
-/** @if internal */
 bool g_debug=false;  /* Global debug flag */
-#define dbg(FMT,...) do { \
-    if (g_debug)\
-        fprintf(stderr,"%s:%d:%s " FMT "\n",__func__,__LINE__,\
-        store->name,##__VA_ARGS__);fflush(stderr); \
-} while (false)
-#define dbgentry(E) do { \
-    if (g_debug) {\
-        fprintf(stderr,"%s:%d: Store(%s)=%lu   Entry(%lu) %s == ",__func__,__LINE__, \
-                store->name,store->index-1,DIdx(E),store->key.print(&store->key,E->key));\
-        fprintf(stderr,"%s\n",store->value.print(&store->value,E->val));\
-        fflush(stderr); \
-    } \
-} while (false)
-#define dbgindex(I) do { \
-    if (g_debug) { \
-        if ((I<0)||(I>=store->index)) { \
-            dbg("WARNING: Index out of range:%d",I); \
-        } else { \
-            _entry_t *dieptr=((_entry_t *)store->list)+I; \
-            dbgentry(dieptr); \
-        }  \
-    } \
-} while (false)
-#define DIdx(E) (((_entry_t*)E)-((_entry_t*)store->list))
-#else
-#define dbg(FMT,...)
-#define dbgentry(E)
-#define dbgindex(I)
-#define DIdx(E)
 #endif
-
-/* Entry Pointer to Index */
-#define EIdx(E) (((_entry_t*)E)-((_entry_t*)store->list))
-/* Entry Index as void Ptr */
-#define VEPtr(I) ((void*) ((I*store->size)+(store->list)))
-/* Entry Index as entry Ptr */
-#define EPtr(I) (((_entry_t *)store->list)+I)
-#define STORE(I) (((_entry_t *)store->list[I])
-#define VALUE(I) (STORE[I]).val
-#define KEY(I) (STORE[I]).key
-/** @endif */
 
 /** @addtogroup HASH @{ */
-/** List Storage struct */
-typedef struct {
-    void *key;      /**< Pointer to Key */
-    void *val;      /**< Pointer to Value */
-#ifdef LIST_ENTRY_LOCK
-    pthread_mutex_t *lock;  /**< Mutex for individual entry */
-    bool lock_en;           /**< Flag to indicate flag is not being deleted */
-#endif
-} _entry_t;
-
-/* Utility Functions for managing list */
 /* Init: */
 static inline void *list_init(list_store_t *store);
 /* Resize: */
 static inline void *list_resize(list_store_t *store);
-/* Central Search and insert function */
-static void *hash_search(list_store_t *store,void *keyref,void *valref);
 /* Bsearch variation that returns existing value or new insert slot */
 static inline void * bfind(const void *key, const void *base, size_t *nmemb, 
         size_t size, __compar_fn_t compar,size_t *slot);
-
-/* Find entry by index. Assumes list lock is held */
-static int find_index(list_store_t *store,void *keyref);
 static char *hash_print(const list_type_info_t *type,const void *val);
 
-/* Delete Entry by index */
-static void delete_entry(list_store_t *store,int index);
 #ifdef LIST_ENTRY_LOCK
 /* Delete lock by index */
 static bool delete_lock(list_store_t *store,int index);
 #endif
-
-/* Mcast shared operations */
-#define OP_NOP 0
-#define OP_SET 1
-#define OP_DEL 2
-#define OP_SYNC 3
-
-void *store_replication(void *vstore);
-bool store_update(list_store_t *store,_entry_t *eptr);
-bool store_remove(list_store_t *store,void *keyref);
 
 /**
  * @brief Internal list search function used by the hash library
@@ -181,7 +114,7 @@ bool store_remove(list_store_t *store,void *keyref);
  * @return pointer to the entry on successful lookup or NULL otherwise.
  * @note Do not call directly.
  */
-static void *hash_search(list_store_t *store,void *keyref,void *valref)
+void *_hash_search(list_store_t *store,void *keyref,void *valref)
 {
     _entry_t *eptr=NULL;
     assert(store);
@@ -250,11 +183,11 @@ bool _list_insert(list_store_t *store,void *keyref,void *valref)
     _entry_t *eptr=NULL; /**< Pointer to entry for lookup/search */
 
     pthread_mutex_lock(&store->lock);
-    eptr=hash_search(store,keyref,valref);
+    eptr=_hash_search(store,keyref,valref);
     if (eptr) {
         dbgentry(eptr);
         ret=true;
-        if (store->port) store_update(store,eptr);
+        if (store->port) repl_update(store,eptr);
 #ifdef LIST_ENTRY_LOCK
         eptr.lock=calloc(1,sizeof(pthread_mutex_t));
         if (eptr->lock) {
@@ -276,7 +209,7 @@ void *_list_reference(list_store_t *store,void *keyref)
     void *value=NULL;
 
     pthread_mutex_lock(&store->lock);
-    eptr=hash_search(store,keyref,false);
+    eptr=_hash_search(store,keyref,false);
     if (eptr) {
         assert(eptr->val);
         value=eptr->val;
@@ -336,7 +269,7 @@ bool _list_copy(list_store_t *store,void *keyref,void *value)
     assert(store);
 
     pthread_mutex_lock(&store->lock);
-    eptr=hash_search(store,keyref,false);
+    eptr=_hash_search(store,keyref,false);
     if (eptr) {
         assert(eptr->val);
         store->value.cp(value,eptr->val);
@@ -399,11 +332,33 @@ int _list_index(list_store_t *store,void *keyref)
     assert(store);
 
     pthread_mutex_lock(&store->lock);
-    index=find_index(store,keyref);
+    index=_find_index(store,keyref);
     dbgindex(index);
     pthread_mutex_unlock(&store->lock);
     return index;
 }
+
+bool _list_netstart(list_store_t *store,uint16_t port)
+{
+    bool ret=true;
+    dbg("Starting thread on port: %u",port);
+
+    if (store->net) {
+        dbg("Error, thread already running");
+        ret=false;
+    } else {
+        if (port) {
+            store->port=port;
+            ret=repl_start(store);
+        } else {
+            dbg("Error, port not non-zero");
+            ret=false;
+        }
+    }
+
+    return ret;
+}
+
 
 bool _list_free(list_store_t *store)
 {
@@ -413,12 +368,8 @@ bool _list_free(list_store_t *store)
     /* Check parameter */
     if (!store) return false;
 
-    if ((store->port)&&(store->list)) {
-        uint16_t port=store->port;
-        char c=OP_NOP;
-        store->port=0;
-        /* Wake up blocked receiver */
-        mcast_send(store->sock,port,(uint8_t*)&c,1);
+    if (store->port) {
+        repl_close(store);
     }
 
     pthread_mutex_lock(&store->lock);
@@ -430,7 +381,7 @@ bool _list_free(list_store_t *store)
         if (!delete_lock(store,store->index-1)) ret=false;
         pthread_mutex_lock(&store->lock);
 #endif
-        delete_entry(store,store->index-1);
+        _delete_entry(store,store->index-1);
     }
     dbg("free: %p, Size: %lu",store->list,store->index);
     if (store->list) {
@@ -459,11 +410,11 @@ bool _list_remove(list_store_t *store,void *keyref)
 
     /* Grab the lock and enure the entry key is still valid */
     pthread_mutex_lock(&store->lock);
-    if (store->port) store_remove(store,keyref);
-    index=find_index(store,keyref);
+    if (store->port) repl_remove(store,keyref);
+    index=_find_index(store,keyref);
     dbgindex(index);
     if (index>=0) {
-        delete_entry(store,index);
+        _delete_entry(store,index);
         ret=true;
     }
     pthread_mutex_unlock(&store->lock);
@@ -478,7 +429,7 @@ bool _list_lock(list_store_t *store,void *keyref,bool lock)
     pthread_mutex_lock *lptr=NULL;
 
     pthread_mutex_lock(&store->lock);
-    eptr=hash_search(store,keyref,false);
+    eptr=_hash_search(store,keyref,false);
     if (eptr) {
         lptr=eptr->lock;
     }
@@ -506,141 +457,14 @@ bool _list_lock(list_store_t *store,void *keyref,bool lock)
 #endif
 }
 
-#define OP_NOP 0
-#define OP_SET 1
-#define OP_DEL 2
-#define OP_SYNC 3
-typedef struct {
-    uint8_t op;
-    uint8_t buf[];
-} entry_packet_t;
-
-void *store_replication(void *vstore)
-{
-    list_store_t *store=(list_store_t *)vstore;
-    _entry_t *eptr=NULL;
-    int bytes;
-    int size=1+store->key.size+store->value.size;
-    uint8_t *buf,*op;
-    void *key,*value;
-    dbg("Replication Started");
-
-    store->sock=mcast_init(store->port);
-    dbg("Init Returned: %d",store->sock);
-    if (store->sock<=0) return NULL;
-
-    store->rcv=calloc(1,size);
-    store->snd=calloc(1,size);
-    buf=store->rcv;
-    op=buf;
-    key=buf+1;
-    value=key+store->key.size;
-    while (store->port) {
-        bytes=mcast_recv(store->sock,buf,size);
-        if (bytes>0) {
-            switch (*op) {
-                case OP_SET:
-                    /* Exclude own packets */
-                    if (memcmp(store->snd+1,store->rcv+1,size-1)!=0)  {
-                        if (bytes==size) {
-                            pthread_mutex_lock(&store->lock);
-                            eptr=hash_search(store,key,value);
-                            pthread_mutex_unlock(&store->lock);
-                            if (eptr) dbgentry(eptr);
-                            else dbg("Insert Failure");
-                        } else {
-                            dbg("Size Error, op: %d, bytes: %d, size: %d",*op,bytes,size);
-                        }
-
-                    }
-                    break;
-                case OP_DEL:
-                    if (bytes>store->key.size) {
-                        int index;
-                        pthread_mutex_lock(&store->lock);
-                        index=find_index(store,key);
-                        dbgindex(index);
-                        if (index>=0) {
-                            delete_entry(store,index);
-                        }
-                        pthread_mutex_unlock(&store->lock);
-                    } else {
-                            dbg("Size Error, op: %d, bytes: %d, size: %lu",*op,
-                                    bytes,store->key.size+1);
-                    }
-                    break;
-                case OP_NOP:
-                    dbg("nop: %d %d, %d",bytes,size,store->sock);
-                    break;
-                default:
-                    dbg("unknown: %u",*op);
-                    break;
-            }
-        } else if (bytes==0) {
-            dbg("Read not blocking");
-            sleep(1);
-        } else {
-            dbg("Error");
-            sleep(1);
-        }
-    }
-    /* Free allocated buffers */
-    if (store->rcv) free(store->rcv);
-    store->rcv=NULL;
-    if (store->snd) free(store->snd);
-    store->snd=NULL;
-    /* Close socket */
-    close(store->sock);
-    store->sock=0;
-    dbg("Thread Closed");
-    return NULL;
-}
-
-bool store_update(list_store_t *store,_entry_t *eptr)
-{
-    int size=1+store->key.size+store->value.size;
-    int bytes;
-
-    /* Ensure buffer is allocated */
-    if (store->snd) {
-        void *key,*value;
-        key=store->snd+1;
-        value=key+store->key.size;
-        store->snd[0]=OP_SET;
-        dbgentry(eptr);
-        if (eptr->key) store->key.cp(key,eptr->key);
-        if (eptr->val) store->value.cp(value,eptr->val);
-        bytes=mcast_send(store->sock,store->port,store->snd,size);
-        if (bytes==size) return true;
-    }
-    return false;
-}
-
-bool store_remove(list_store_t *store,void *keyref)
-{
-    int size=1+store->key.size;
-    int bytes;
-
-    /* Ensure buffer is allocated */
-    if (store->snd) {
-        void *key;
-        key=store->snd+1;
-        store->snd[0]=OP_DEL;
-        store->key.cp(key,keyref);
-        if (keyref) store->key.cp(key,keyref);
-        bytes=mcast_send(store->sock,store->port,store->snd,size);
-        if (bytes==size) return true;
-    }
-    return false;
-}
 /** Local find index, without locks */
-static int find_index(list_store_t *store,void *keyref)
+int _find_index(list_store_t *store,void *keyref)
 {
     int ret=-1;
     _entry_t *eptr=NULL; /**< Pointer to entry for lookup/search */
     assert(store);
 
-    eptr=hash_search(store,keyref,false);
+    eptr=_hash_search(store,keyref,false);
     //eptr=store->find(store,key,false);
     if (eptr) {
         dbgentry(eptr);
@@ -693,7 +517,7 @@ static bool delete_lock(list_store_t *store,int index)
  * by calling function
  * Also assumes lock is held by calling function.
  */
-static void delete_entry(list_store_t *store,int index)
+void _delete_entry(list_store_t *store,int index)
 {
     _entry_t *eptr=NULL; /**< Pointer to entry for lookup/search */
     /* Ensure the store is initialized and has an entry */
@@ -720,6 +544,8 @@ static inline void *list_init(list_store_t *store)
         store->list=calloc(store->size,store->max);
         if (!store->key.print) store->key.print=hash_print;
         if (!store->value.print) store->value.print=hash_print;
+        if (store->key.sz) store->key.size=store->key.sz(NULL);
+        if (store->value.sz) store->value.size=store->value.sz(NULL);
     }
     return store->list;
 }

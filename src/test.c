@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include "hash.h"
+#include "test.h"
 
 #define mu_assert(message, test) do { if (!(test)) {printf("Fail %s:%d ",__func__,__LINE__); return message;} } while (0)
 #define mu_run_test(test) do { char *message = test(); tests_run++; \
@@ -49,36 +50,24 @@ static inline void timeInfo(char *msg,const char *func,int line)
 static inline void timeInfo(char *msg,const char *func,int line) {}
 #endif
 
+#ifdef HDEBUG
 #define PRINT(FMT,...) fprintf(stderr,"%s:%d: " FMT "\n",__func__,__LINE__,##__VA_ARGS__);
+#else
+#define PRINT(FMT,...)
+#endif
 /* Size for larger tests */
 #ifndef MAXSIZE
 #define MAXSIZE 2000
 #endif
 
-/* Custom test types for hashes, implemented for basic tests, can be set in CC line */
-#ifndef TK1
-#define TK1 int
-#endif
-#define TK1_0 ((TK1)0)
-#ifndef TK2
-#define TK2 STR
-#endif
-#define TK2_0 ((TK2)0)
-#ifndef TV1
-#define TV1 int
-#endif
-#define TV1_0 ((TV1)0)
-#ifndef TV2
-#define TV2 TV1
-#endif
-#define TV2_0 ((TV2)0)
 char buf[80];
 int g_count=0;
 
 int tests_run = 0;
 
 /* Test of basic functions c */
-DEFINE_LIST(Test1,TK1,TV1);
+//DEFINE_LIST(Test1,TK1,TV1);
+DECLARE_LIST(Test1);
 DEFINE_HASH(Test2,TV2);
 int rc,c=0;
 
@@ -574,10 +563,10 @@ static char *testHashDel()
 }
 
 
-typedef struct {int ifield; bool bfield; float ffield;} test_fields_t;
 
 DEFINE_LIST(Test3,int,test_fields_t);
-DEFINE_HASH(Test4,test_fields_t);
+//DEFINE_HASH(Test4,test_fields_t);
+DECLARE_LIST(Test4);
 DEFINE_LIST_ITERATOR(Test3,int,ifield)
 DEFINE_LIST_ITERATOR(Test3,bool,bfield)
 DEFINE_LIST_ITERATOR(Test4,int,ifield)
@@ -744,10 +733,15 @@ static char *testHashFree()
 DEFINE_LIST(Test9,TK1,TV1);
 DEFINE_LIST(TestA,TK1,TV1);
 DEFINE_LIST(TestB,TK1,TV1);
+DEFINE_HASH(TestS1,TV1);
+DEFINE_HASH(TestS2,TV1);
 
 static char * testNetShare(void)
 {
     TK1 key1;
+    TK2 key2=buf;
+    TV2 expect2;
+    TV2 result2;
     TV1 expect1;
     TV1 result1;
     TK1 key9;
@@ -759,41 +753,42 @@ static char * testNetShare(void)
 
     Test1Free();
 
-    Test1NetStart(6000);
-    Test9NetStart(6000);
-    TestANetStart(6000);
-    TestBNetStart(6000);
+    //DBUG_SW(true);
+    Test1NetStart(6001);
+    Test9NetStart(6001);
+    TestANetStart(6001);
 
     key1=1;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
-    ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
+    ret=Test1Set(key1,expect1); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
-    usleep(10000);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
     mu_assert("Count increase",TestACount()==(int) key1);
     resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
-    mu_assert("Count increase",TestBCount()==(int) key1);
-    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
+    mu_assert("Count increase",TestBCount()==(int) 0);
+    DBUG_SW(false);
+
 
     key1=2;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
-    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret);
+    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
     mu_assert("Count increase",TestACount()==(int) key1);
     resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
-    mu_assert("Count increase",TestBCount()==(int) key1);
-    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
+    mu_assert("Count increase",TestBCount()==(int) 0);
 
+    TestBNetStart(6001);
+
+    sleep(1);
     key1=3;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
-    ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
+    ret=Test1Set(key1,expect1); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
-    usleep(10000);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
@@ -804,7 +799,7 @@ static char * testNetShare(void)
 
     key1=4;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
-    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret);
+    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
@@ -816,9 +811,8 @@ static char * testNetShare(void)
 
     key1=5;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
-    ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
+    ret=Test1Set(key1,expect1); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
-    usleep(10000);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
@@ -829,7 +823,7 @@ static char * testNetShare(void)
 
     key1=6;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
-    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret);
+    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) key1);
@@ -843,8 +837,7 @@ static char * testNetShare(void)
     key1=2;    expect1=key2value(key1+10);
     key9=key1; expect9=key2value(key9+10);
     ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
-    mu_assert("Count increase",Test1Count()==(int) g_count);
-    usleep(10000);
+    mu_assert("Count increase",Test1Count()==(int) g_count); usleep(10000);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) g_count);
     result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
@@ -855,7 +848,7 @@ static char * testNetShare(void)
 
     key1=3;    expect1=key2value(key1+10);
     key9=key1; expect9=key2value(key9+10);
-    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret);
+    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) g_count);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
     mu_assert("Count increase",Test9Count()==(int) g_count);
@@ -866,8 +859,18 @@ static char * testNetShare(void)
     resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
 
     key1=3;g_count--;
-    ret=Test1Del(key1); mu_assert("Delete of key1 successful",ret);
-    usleep(10000);
+    ret=Test1Del(key1); mu_assert("Delete of key1 successful",ret); usleep(10000);
+    mu_assert("Count decrease",Test1Count()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!Test1HasKey(key1));
+    mu_assert("Count decrease",Test9Count()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!Test9HasKey(key1));
+    mu_assert("Count decrease",TestACount()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestAHasKey(key1));
+    mu_assert("Count decrease",TestBCount()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestBHasKey(key1));
+
+    key1=2;g_count--;
+    ret=TestBDel(key1); mu_assert("Delete of key1 successful",ret); usleep(10000);
     mu_assert("Count decrease",Test1Count()==g_count);
     mu_assert("HashHasKey Deleted HasKey",!Test1HasKey(key1));
     mu_assert("Count decrease",Test9Count()==g_count);
@@ -881,6 +884,54 @@ static char * testNetShare(void)
     Test9Free();
     TestAFree();
     TestBFree();
+
+    //DBUG_SW(true);
+    TestS1NetStart(6002);
+    TestS2NetStart(6002);
+
+    key1=1;    expect1=key2value(key1);
+    key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=TestS1Set(key2,expect2); mu_assert("Set Value",ret); usleep(10000);
+    mu_assert("Count increase",TestS1Count()==(int) key1);
+    result2=TestS1Val(key2); mu_assert("Set Value result",expect2==result2);
+    mu_assert("Count increase",TestS2Count()==(int) key1);
+    result2=TestS2Val(key2); mu_assert("Set Value result",expect2==result2);
+
+    key1=2;    expect1=key2value(key1);
+    key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=TestS2Set(key2,expect2); mu_assert("Set Value",ret); usleep(10000);
+    mu_assert("Count increase",TestS2Count()==(int) key1);
+    result2=TestS2Val(key2); mu_assert("Set Value result",expect2==result2);
+    mu_assert("Count increase",TestS1Count()==(int) key1);
+    result2=TestS1Val(key2); mu_assert("Set Value result",expect2==result2);
+
+    key1=3;    expect1=key2value(key1);
+    key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=TestS1Set(key2,expect2); mu_assert("Set Value",ret); usleep(10000);
+    mu_assert("Count increase",TestS1Count()==(int) key1);
+    result2=TestS1Val(key2); mu_assert("Set Value result",expect2==result2);
+    mu_assert("Count increase",TestS2Count()==(int) key1);
+    result2=TestS2Val(key2); mu_assert("Set Value result",expect2==result2);
+
+    key1=4; g_count=key1; expect1=key2value(key1);
+    key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=TestS2Set(key2,expect2); mu_assert("Set Value",ret); usleep(10000);
+    mu_assert("Count increase",TestS2Count()==(int) g_count);
+    result2=TestS2Val(key2); mu_assert("Set Value result",expect2==result2);
+    mu_assert("Count increase",TestS1Count()==(int) g_count);
+    result2=TestS1Val(key2); mu_assert("Set Value result",expect2==result2);
+
+    key1=2;g_count--;
+    key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=TestS1Del(key2); mu_assert("Delete of key1 successful",ret); usleep(10000);
+    mu_assert("Count decrease",TestS1Count()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestS1HasKey(key2));
+    mu_assert("Count decrease",TestS2Count()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestS2HasKey(key2));
+
+    TestS1Free();
+    TestS2Free();
+
     return 0;
 }
 
@@ -986,8 +1037,10 @@ DEFINE_LIST(Thread1,int,uint32_t);
 DEFINE_LIST(Thread2,int,uint32_t);
 DEFINE_LIST(Thread3,int,uint32_t);
 static pthread_t test1Handle; /** Handle to thread */
+#ifndef MEM_TEST
 static pthread_t test2Handle; /** Handle to thread */
 static pthread_t test3Handle; /** Handle to thread */
+#endif
 
 pthread_mutex_t mutexCond = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t testStartCond = PTHREAD_COND_INITIALIZER;
@@ -1014,6 +1067,7 @@ static char *test1Thread(void *parm)
     TIMEINFO("Complete");/* Print time info if enabled */
     return 0;
 }
+#ifndef MEM_TEST
 static char *test2Thread(void *parm)
 {
     pthread_mutex_lock(&mutexCond);
@@ -1021,7 +1075,6 @@ static char *test2Thread(void *parm)
     pthread_mutex_unlock(&mutexCond);
     TIMEINFO("GO");/* Print time info if enabled */
     while (Test5Count()) {
-#ifndef MEM_TEST
         int k;
         uint32_t v;
         k=Test5Keys(0);
@@ -1031,7 +1084,6 @@ static char *test2Thread(void *parm)
                 Thread2Set(k,v);
             }
         }
-#endif
     }
     /* Ensure the other threads are not still sleeping */
     pthread_cond_broadcast(&testStartCond);
@@ -1046,7 +1098,6 @@ static char *test3Thread(void *parm)
     pthread_mutex_unlock(&mutexCond);
     TIMEINFO("GO");/* Print time info if enabled */
     while (Test5Count()) {
-#ifndef MEM_TEST
         int k;
         uint32_t v;
         k=Test5Keys(0);
@@ -1055,7 +1106,6 @@ static char *test3Thread(void *parm)
                 Thread3Set(k,v);
             }
         }
-#endif
     }
     /* Ensure the other threads are not still sleeping */
     pthread_cond_broadcast(&testStartCond);
@@ -1063,6 +1113,7 @@ static char *test3Thread(void *parm)
     TIMEINFO("Complete");/* Print time info if enabled */
     return 0;
 }
+#endif
 
 static char *testThreadMain(void)
 {
@@ -1073,8 +1124,10 @@ static char *testThreadMain(void)
     TIMEINFO("start");/* Print time info if enabled */
 
     pthread_create(&test1Handle, NULL, (void*)test1Thread, NULL);
+#ifndef MEM_TEST
     pthread_create(&test2Handle, NULL, (void*)test2Thread, NULL);
     pthread_create(&test3Handle, NULL, (void*)test3Thread, NULL);
+#endif
 
     usleep(1000);
     pthread_cond_broadcast(&testStartCond);
@@ -1085,8 +1138,10 @@ static char *testThreadMain(void)
     pthread_cond_broadcast(&testStartCond);
 
     pthread_join(test1Handle, (void*)&ret1);
+#ifndef MEM_TEST
     pthread_join(test2Handle, (void*)&ret2);
     pthread_join(test3Handle, (void*)&ret3);
+#endif
 
     if (ret1) return ret1;
     if (ret2) return ret2;

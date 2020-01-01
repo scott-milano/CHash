@@ -16,21 +16,43 @@
  * @{
  */
  
-#ifndef __MCAST_H__
-#define __MCAST_H__
+#ifdef UNIT_TEST
+#ifndef __TEST_H__
+#define __TEST_H__
 
-#include<stdint.h>
+#include "hash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int mcast_init(uint16_t port);
-int mcast_recv(int sock, void *buf, int size,int opt);
-int mcast_send(int sock,uint16_t port, void *buf, int size,int opt);
+/* Custom test types for hashes, implemented for basic tests, can be set in CC line */
+#ifndef TK1
+#define TK1 int
+#endif
+#define TK1_0 ((TK1)0)
+#ifndef TK2
+#define TK2 STR
+#endif
+#define TK2_0 ((TK2)0)
+#ifndef TV1
+#define TV1 int
+#endif
+#define TV1_0 ((TV1)0)
+#ifndef TV2
+#define TV2 TV1
+#endif
+#define TV2_0 ((TV2)0)
 
+/* Test data structure */
+typedef struct {int ifield; bool bfield; float ffield;} test_fields_t;
+
+EXTERN_LIST(Test1,TK1,TV1);
+EXTERN_HASH(Test4,test_fields_t);
+
+/**@}*/
 #ifdef __cplusplus
 }
 #endif
-#endif /* __MCAST_H__ */
-/**@}*/
+#endif /* __TEST_H__ */
+#endif /* UNIT_TEST */
