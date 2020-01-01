@@ -457,7 +457,7 @@ static uint32_t pyHash(const uint8_t *a,int s,int32_t x)
     const register uint8_t *p=a;
     //register int64_t x;
 
-    x = *p << 7;
+    x |= *p << 7;
     while (--len >= 0)
         x = (1000003*x) ^ *p++;
     x ^= s;
