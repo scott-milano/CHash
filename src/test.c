@@ -750,13 +750,16 @@ static char * testNetShare(void)
     TV1 resultA;
     TV1 resultB;
     bool ret;
+    int netPort=6501;
+#ifdef TIMETEST
+    int i;
+#endif
 
     Test1Free();
 
-    //DBUG_SW(true);
-    Test1NetStart(6001);
-    Test9NetStart(6001);
-    TestANetStart(6001);
+    Test1NetStart(netPort);
+    Test9NetStart(netPort);
+    TestANetStart(netPort);
 
     key1=1;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
@@ -768,8 +771,6 @@ static char * testNetShare(void)
     mu_assert("Count increase",TestACount()==(int) key1);
     resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
     mu_assert("Count increase",TestBCount()==(int) 0);
-    DBUG_SW(false);
-
 
     key1=2;    expect1=key2value(key1);
     key9=key1; expect9=key2value(key9);
@@ -782,7 +783,7 @@ static char * testNetShare(void)
     resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
     mu_assert("Count increase",TestBCount()==(int) 0);
 
-    TestBNetStart(6001);
+    TestBNetStart(netPort);
 
     sleep(1);
     key1=3;    expect1=key2value(key1);
@@ -880,14 +881,31 @@ static char * testNetShare(void)
     mu_assert("Count decrease",TestBCount()==g_count);
     mu_assert("HashHasKey Deleted HasKey",!TestBHasKey(key1));
 
+#ifdef TIMETEST
+    usecelapsed();
+    for (i=10;i<500;i+=4) {
+        key1=i;
+        ret=Test1Set(key1+0,key1+0); mu_assert("Set Value",ret);g_count++;
+        ret=Test9Set(key1+1,key1+1); mu_assert("Set Value",ret);g_count++;
+        ret=TestASet(key1+2,key1+2); mu_assert("Set Value",ret);g_count++;
+        ret=TestBSet(key1+3,key1+3); mu_assert("Set Value",ret);g_count++;
+        //PRINT("1: %d 9: %d A: %d B: %d", Test1Count(), Test9Count(),TestACount(), TestBCount());
+    }
+    PRINT("Load count: %d time: %0.6lf seconds\n",g_count,((double) usecelapsed())/1000000.0);
+    mu_assert("Count match",Test1Count()==g_count);
+    mu_assert("Count match",Test9Count()==g_count);
+    mu_assert("Count match",TestACount()==g_count);
+    mu_assert("Count match",TestBCount()==g_count);
+#endif
+
+
     Test1Free();
     Test9Free();
     TestAFree();
     TestBFree();
 
-    //DBUG_SW(true);
-    TestS1NetStart(6002);
-    TestS2NetStart(6002);
+    TestS1NetStart(netPort);
+    TestS2NetStart(netPort);
 
     key1=1;    expect1=key2value(key1);
     key2=key1Tokey2(key1); expect2=(TV2) expect1;

@@ -104,18 +104,33 @@ static char *opLu[] = {
 
 /** Macro to send message header
  * @param store List master structure
- * @param op opcode for message 
+ * @param op opcode for message
  * @param size number of bytes in complete message
- * @note All sends use MSG_MORE to accumulate but not send data.  Need to call
- * mcast_send without MSG_MORE for transmit to occur */
-static inline int send_hdr(list_store_t *store, uint8_t op,int size)
+ * @return number of bytes sent or error from sendto.  This includes the
+ * header size.
+ */
+static inline int send_msg(list_store_t *store, uint8_t op,void *buf,int size)
 {
-    packet_t data ={.size=offsetof(packet_t,data)+size,
-                    .hashid=store->net->id,
-                    .nodeid=store->net->self,
-                    .op=op};
-    return mcast_send(store->net->sock,store->port,&data,
-            offsetof(packet_t,data),MSG_MORE);
+    int ret=-1;
+    int msize=offsetof(packet_t,data)+size;
+    packet_t *pkt=NULL;
+
+    /* Alocate send buffer and populate */
+    if ((pkt=malloc(msize))) {
+        pkt->size=msize;
+        pkt->hashid=store->net->id;
+        pkt->nodeid=store->net->self;
+        pkt->op=op;
+        if (buf) {
+            memcpy(&pkt->data[0],buf,size);
+        }
+        ret=mcast_send(store->net->sock,store->port,pkt,msize,0);
+        if (ret<msize) {
+            fprintf(stderr,"send_MSg size issue: expected: %d, actual: %d\n",msize,ret);
+        }
+        free(pkt);
+    }
+    return ret;
 }
 
 /** This function serves as the main thread for recieving hash updates */
@@ -152,11 +167,7 @@ static void *store_replication(void *vstore)
     net->state=STATE_START;
 
     /* See if existing nodes have more data */
-    pthread_mutex_lock(&net->netLock);
-    send_hdr(store,OP_STAT_REQ,0);
-    /* Need to call send once without MSG_MORE for the data to be sent */
-    mcast_send(net->sock,store->port,NULL,0,0);
-    pthread_mutex_unlock(&net->netLock);
+    send_msg(store,OP_STAT_REQ,NULL,0);
 
     dbg("Replicator Starting: id: %x, self: %x, sock: %d port: %u",net->id,
             net->self,net->sock,store->port);
@@ -181,7 +192,6 @@ static void *store_replication(void *vstore)
             if (socketReady(net->sock,delay)) {
                 int hdrSize=offsetof(packet_t,data);
 
-                dbg("Data available");
                 /* Read all available packets until empty */
                 while ((bytes=mcast_recv(net->sock,buf,size,MSG_DONTWAIT))>0) {
                     packet_t *ptr=(packet_t *)buf;
@@ -224,11 +234,7 @@ static void *store_replication(void *vstore)
                         if (net->maxCount>store->index) {
                             dbg("Requesting update from id: %x count: %d\n",
                                     net->maxNode,net->maxCount);
-                            pthread_mutex_lock(&net->netLock);
-                            send_hdr(store,OP_SYNC,sizeof(net->maxNode));
-                            mcast_send(net->sock,store->port,&net->maxNode,
-                                    sizeof(net->maxNode),0);
-                            pthread_mutex_unlock(&net->netLock);
+                            send_msg(store,OP_SYNC,&net->maxNode,sizeof(net->maxNode));
                         }
                     }
                 default:
@@ -307,10 +313,7 @@ int processOp(list_store_t *store,uint8_t op,id_t node,void* data,int bytes)
             /* Request for list index size for a sync operation */
             if (store->index) {
                 /* Only send if there are items availble to send */
-                pthread_mutex_lock(&net->netLock);
-                send_hdr(store,OP_STAT,sizeof(store->index));
-                mcast_send(net->sock,store->port,&store->index,sizeof(store->index),0);
-                pthread_mutex_unlock(&net->netLock);
+                send_msg(store,OP_STAT,&store->index,sizeof(store->index));
             }
         } break;
         case OP_STAT: {
@@ -351,13 +354,22 @@ bool repl_update(list_store_t *store,_entry_t *eptr)
     if ((net)&&(net->sock)) {
         int keysize=store->key.sz(eptr->key);
         int valsize=store->value.sz(eptr->val);
+        int msize=offsetof(packet_t,data)+keysize+valsize;
+        packet_t *pkt=NULL;
+
         dbgentry(eptr);
-        pthread_mutex_lock(&net->netLock);
-        send_hdr(store,OP_SET,keysize+valsize);
-        bytes+=mcast_send(net->sock,store->port,eptr->key,keysize,MSG_MORE);
-        bytes+=mcast_send(net->sock,store->port,eptr->val,valsize,0);
-        pthread_mutex_unlock(&net->netLock);
-        if (bytes==(keysize+valsize)) return true;
+        /* Alocate send buffer and populate */
+        if ((pkt=malloc(msize))) {
+            pkt->size=msize;
+            pkt->hashid=store->net->id;
+            pkt->nodeid=store->net->self;
+            pkt->op=OP_SET;
+            memcpy(&pkt->data[0],eptr->key,keysize);
+            memcpy(&pkt->data[keysize],eptr->val,valsize);
+            bytes=mcast_send(store->net->sock,store->port,pkt,msize,0);
+            free(pkt);
+        }
+        if (bytes>=(keysize+valsize)) return true;
         fprintf(stderr,"Set size issue: Bytes: %d, Size: %d\n",bytes,keysize+valsize);
     }
     return false;
@@ -371,11 +383,8 @@ bool repl_remove(list_store_t *store,void *keyref)
     /* Ensure buffer is allocated */
     if ((net)&&(net->sock)) {
         int keysize=store->key.sz(keyref);
-        pthread_mutex_lock(&net->netLock);
-        send_hdr(store,OP_DEL,keysize);
-        bytes=mcast_send(net->sock,store->port,keyref,keysize,0);
-        pthread_mutex_unlock(&net->netLock);
-        if (bytes==keysize) return true;
+        bytes=send_msg(store,OP_DEL,keyref,keysize);
+        if (bytes>=keysize) return true;
         fprintf(stderr,"Del size issue: Bytes: %d, Size: %d\n",bytes,keysize);
     }
     return false;
@@ -410,7 +419,7 @@ bool repl_start(list_store_t *store)
                 pthread_mutex_unlock(&net->netLock);
             }
         } else {
-            fprintf(stderr,"Memory Allocation Error: %d",(int) sizeof(*(store->net)));
+            fprintf(stderr,"Memory Allocation Error: %d\n",(int) sizeof(*(store->net)));
             ret=false;
         }
     } else {
@@ -502,9 +511,9 @@ static int socketReady(int sock, long tmOutms)
         /* Timeout */
         return 0;
     } else if (status<0) {
-        /* Error */
-        fprintf(stderr,"Select Error: %s",strerror(errno));
-        sleep(1);
+        /* Error, sleep to stop runaway error, also occurs on close */
+        usleep(10000);
+        return 0;
     } else {
         /* Check if server connection is ready */
         if (FD_ISSET(sock, &read_fds)) {

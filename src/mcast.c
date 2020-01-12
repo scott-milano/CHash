@@ -30,18 +30,9 @@
 
 
 /**< Lock for list list access */
-pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
 /** Static address for all sends/recv calls */
-struct sockaddr_in mcAddr;
-/** Static socket */
-int mcSock=0;
-int mcId=0;
-
-typedef struct {
-    uint32_t id;
-    uint16_t size;
-    uint8_t buf[];
-} packet_t;
+static struct sockaddr_in mcAddr;
 
 #define BASE_ADDRESS "239.0.0.1"
 int mcast_init(uint16_t port)
@@ -51,11 +42,6 @@ int mcast_init(uint16_t port)
     int sock;
     pthread_mutex_lock(&lock);
 
-    /* Get a uniq id to throw away own packets */
-    mcId=pthread_self();
-    mcId<<=16;
-    mcId+=getpid();
- 
     /* set up socket */
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
