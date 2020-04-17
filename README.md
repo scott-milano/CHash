@@ -1,6 +1,6 @@
 ﻿# CHash
 
-Dynamic Lists/Hashes in C
+Dynamic Lists/Hashes/Fifos in C
 
 **Note:** This library is very lightly tested (with the included unit test) and should not be depended upon in production/critical code.
 
@@ -13,6 +13,7 @@ The list can be generated with the macros defined in hash.h
 
 -  DEFINE\_LIST()
 -  DEFINE\_HASH()
+-  DEFINE\_FIFO()
 
 ## Features
 
@@ -24,6 +25,7 @@ This library has the following features currently or in development.
 - Linear Lookup: If list order is important and needs to be maintained, build with -DLSEARCH option.
 - Network Shared: List inserts and deletes can be broadcast via multicast. New joins get updated with latest data.
 - Key/Value: Types can be simple ordinal types or structures.  String keys are supported by the DEFINE\_HASH() macro.
+- Fifo: List with Value only which include Stack/Fifo Operations (push,pop,next)
 - Tested with Valgrind for memory leaks (run make memtest)
 
 ## Build
@@ -51,6 +53,8 @@ These macros generate the list along with the accesor methods.  Method name pref
     DEFINE_LIST(IntFloatList,int,float)
 
     DEFINE_HASH(AddrHash,in_addr_t)
+
+    DEFINE_FIFO(PendMsg,msg_t)
 
 Entries are then created with:
 
@@ -251,6 +255,54 @@ Example:
 static inline bool LNameUnLock(LKeyType key)
 
 Set the mutex lock of a single list entry. 
+
+### ListPop static inline bool LNamePop(List\_v *value);
+
+ListPop POPs the value from the end of the list
+
+Parameters:
+
+- value reference to value for return
+
+Returns true on success, false on failure
+
+Get/remove the value from the end of the list/fifo/hash
+
+Example:
+
+    ListPop(&value);
+
+### ListNext static inline bool LNameNext(List\_v *value);
+
+ListNext Remove the first value from the start of the list
+
+Parameters:
+
+- value reference to value for return
+
+Returns true on success, false on failure
+
+Get/remove the value from the start of the list/fifo/hash
+
+Example:
+
+    ListNext(&value);
+
+### ListPush static inline bool LNamePush(List\_v value);
+
+ListPush Adds the value to the end of the FIFO
+
+Parameters:
+
+- value reference to value for return
+
+Returns true on success, false on failure
+
+Adds value ot the end of the fifo
+
+Example:
+
+    ListPush(value);
 
 ## Tests
 
