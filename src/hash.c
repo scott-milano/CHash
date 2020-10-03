@@ -61,6 +61,10 @@
  * <hr>
  * @copydetails LIST_FUNCTION_NETSTART
  * <hr>
+ * @copydetails LIST_FUNCTION_LOAD
+ * <hr>
+ * @copydetails LIST_FUNCTION_SAVE
+ * <hr>
  * @copydetails LIST_FUNCTION_FREE
  * <hr>
  * @copydetails LIST_FUNCTION_LOCK
@@ -82,6 +86,7 @@
 #include "entry.h"
 
 #ifdef HDEBUG
+#include <errno.h>
 bool g_debug=false;  /* Global debug flag */
 #endif
 
@@ -94,6 +99,8 @@ static inline void *list_resize(list_store_t *store);
 static inline void * bfind(const void *key, const void *base, size_t *nmemb, 
         size_t size, __compar_fn_t compar,size_t *slot);
 static char *hash_print(const list_type_info_t *type,const void *val);
+
+static uint32_t pyHash(const uint8_t *a,int s,uint32_t x);
 
 #ifdef LIST_ENTRY_LOCK
 /* Delete lock by index */
@@ -343,6 +350,9 @@ bool _list_netstart(list_store_t *store,uint16_t port)
     bool ret=true;
     dbg("Starting thread on port: %u",port);
 
+    /* Ensure list is initialized */
+    if (!list_init(store)) return false;
+
     if (store->net) {
         dbg("Error, thread already running");
         ret=false;
@@ -359,6 +369,135 @@ bool _list_netstart(list_store_t *store,uint16_t port)
     return ret;
 }
 
+bool _list_load(list_store_t *store,char *file)
+{
+    FILE *fp=NULL;
+    uint32_t loadId=0;
+    void *key=NULL;
+    void *val=NULL;
+    assert(store);
+
+    pthread_mutex_lock(&store->lock);
+    /* Check if store is initialized */
+    if (!list_init(store)) return false;
+    pthread_mutex_unlock(&store->lock);
+    
+    dbg("list: %p, Size: %lu",store->list,store->index);
+    
+    /* Open file for reading */
+    if ((fp=fopen(file,"r"))==NULL) {
+        dbg("Failed to open file %s for reading: %s",file,strerror(errno));
+        return false;
+    }
+
+    /* Check header matches this list/hash type and data sizes
+     * Header: name hash */
+    if ((fread(&loadId,sizeof(loadId),1,fp)!=1)||
+        (loadId!=store->id)) {
+        dbg("Header error for %s: %s",file,strerror(errno));
+        fclose(fp);
+        return false;
+    }
+
+    /* Allocate buffer for key */
+    if ((key=malloc(store->key.size))==NULL) {
+        dbg("Memory error for %s: %s",file,strerror(errno));
+        fclose(fp);
+        return false;
+    }
+    /* Allocate buffer for value */
+    if ((val=malloc(store->value.size))==NULL) {
+        dbg("Memory error for %s: %s",file,strerror(errno));
+        free(key);
+        fclose(fp);
+        return false;
+    }
+    
+    /* Loop through entries and store */
+    while ((fread(key,store->key.size,1,fp))==1) {
+        if (fread(val,store->value.size,1,fp)==1) {
+            if (!_list_insert(store,key,val)) {
+                dbg("Insert failed for %s: %s",file,strerror(errno));
+                free(key);
+                free(val);
+                fclose(fp);
+                return false;
+            }
+        } else {
+            dbg("Value read failed for %s: %s",file,strerror(errno));
+            free(key);
+            free(val);
+            fclose(fp);
+            return false;
+        }
+    }
+    free(key);
+    free(val);
+
+    /* Load complete close file and return success */
+    fclose(fp);
+    return true;
+}
+
+
+bool _list_save(list_store_t *store,char *file)
+{
+    FILE *fp=NULL;
+    int i;
+    _entry_t *eptr=NULL; /**< Pointer to entry for lookup/search */
+    assert(store);
+
+    pthread_mutex_lock(&store->lock);
+    /* Check if store is initialized */
+    if (!list_init(store)) return false;
+    
+    dbg("list: %p, Size: %lu",store->list,store->index);
+    
+    /* Open file for writting */
+    if ((fp=fopen(file,"w"))==NULL) {
+        dbg("Failed to open file %s for writting: %s",file,strerror(errno));
+        pthread_mutex_unlock(&store->lock);
+        return false;
+    }
+
+    /* Create header to match on load so that incompatible lists cannot be loaded
+     * Header: name hash */
+    if (fwrite(&store->id,sizeof(store->id),1,fp)!=1) {
+        dbg("Header error for %s: %s",file,strerror(errno));
+        fclose(fp); unlink(file);
+        pthread_mutex_unlock(&store->lock);
+        return false;
+    }
+
+    /* Loop through entries and store */
+    for (i=0;i<store->index;i++) {
+        eptr=((_entry_t *)store->list)+i;
+        if ((eptr->key)&&(eptr->val)) {
+            if (fwrite(eptr->key,store->key.size,1,fp)!=1) {
+                dbg("key write error for %s: %s",file,strerror(errno));
+                fclose(fp); unlink(file);
+                pthread_mutex_unlock(&store->lock);
+                return false;
+            }
+            if (fwrite(eptr->val,store->value.size,1,fp)!=1) {
+                dbg("value write error for %s: %s",file,strerror(errno));
+                fclose(fp); unlink(file);
+                pthread_mutex_unlock(&store->lock);
+                return false;
+            }
+        } else {
+            dbg("List corruption error on index: %d",i);
+            fclose(fp); unlink(file);
+            pthread_mutex_unlock(&store->lock);
+            return false;
+        }
+    }
+
+    /* Save complete close file and return success */
+    fclose(fp);
+    pthread_mutex_unlock(&store->lock);
+    return true;
+}
 
 bool _list_free(list_store_t *store)
 {
@@ -546,6 +685,12 @@ static inline void *list_init(list_store_t *store)
         if (!store->value.print) store->value.print=hash_print;
         if (store->key.sz) store->key.size=store->key.sz(NULL);
         if (store->value.sz) store->value.size=store->value.sz(NULL);
+        /* Generate uniq id from hash configuration */
+        store->id=store->key.size + store->key.size;
+        store->id=pyHash((uint8_t *)store->key.name,strlen(store->key.name),
+            store->id);
+        store->id=pyHash((uint8_t *)store->value.name,strlen(store->value.name),
+            store->id);
     }
     return store->list;
 }
@@ -626,6 +771,32 @@ static char *hash_print(const list_type_info_t *type,const void *val)
         }
     }
     return buf;
+}
+
+/**
+ * @brief Function return a list that matches the version calculated by python
+ * @param a pointer to hash source item
+ * @param s size of item to hash
+ * @param x current sum for accumulating multiple sums
+ * Example:
+ * \code{.c}
+ * propMsg=tlv;
+ * h=pyHash(&propMsg,sizeof(propMsg),0);
+ * \endcode
+ * @return hash value
+ */
+static uint32_t pyHash(const uint8_t *a,int s,uint32_t x)
+{
+    register int len=s;
+    const register uint8_t *p=a;
+
+    x |= *p << 7;
+    while (--len >= 0)
+        x = (1000003*x) ^ *p++;
+    x ^= s;
+    if (x == -1)
+        x = -2;
+    return ((uint32_t) (x&0xffffffff));
 }
 
 /**@}*/

@@ -52,7 +52,6 @@ static inline long mtime() {
    return tp.tv_sec*1000 + tp.tv_usec/1000;
 }
 
-static uint32_t pyHash(const uint8_t *a,int s,int32_t x);
 int processOp(list_store_t *store,uint8_t op,id_t node,void* data,int bytes);
 static int socketReady(int sock, long tmOutms);
 
@@ -118,7 +117,7 @@ static inline int send_msg(list_store_t *store, uint8_t op,void *buf,int size)
     /* Alocate send buffer and populate */
     if ((pkt=malloc(msize))) {
         pkt->size=msize;
-        pkt->hashid=store->net->id;
+        pkt->hashid=store->id;
         pkt->nodeid=store->net->self;
         pkt->op=op;
         if (buf) {
@@ -157,9 +156,6 @@ static void *store_replication(void *vstore)
 
     dbg("Replication Thread Started");
 
-    /* Generate uniq id from hash configuration */
-    net->id=pyHash((uint8_t *)store->key.name,strlen(store->key.name),0);
-    net->id=pyHash((uint8_t *)store->value.name,strlen(store->value.name),net->id);
     /* Generate own id from pthread_self() */
     net->self=pthread_self();
 
@@ -169,7 +165,7 @@ static void *store_replication(void *vstore)
     /* See if existing nodes have more data */
     send_msg(store,OP_STAT_REQ,NULL,0);
 
-    dbg("Replicator Starting: id: %x, self: %x, sock: %d port: %u",net->id,
+    dbg("Replicator Starting: id: %x, self: %x, sock: %d port: %u",store->id,
             net->self,net->sock,store->port);
 
     /* Notify parent thread we are running */
@@ -197,7 +193,7 @@ static void *store_replication(void *vstore)
                     packet_t *ptr=(packet_t *)buf;
                     assert(ptr->size==bytes);
                     /* discard packets from self or other hashes */
-                    if ((ptr->hashid!=net->id)||(ptr->nodeid==net->self)) continue;
+                    if ((ptr->hashid!=store->id)||(ptr->nodeid==net->self)) continue;
 
                     /* Process message */
                     dbg("process(%s): n: %x b: %d",opLu[ptr->op],ptr->nodeid,bytes);
@@ -361,7 +357,7 @@ bool repl_update(list_store_t *store,_entry_t *eptr)
         /* Alocate send buffer and populate */
         if ((pkt=malloc(msize))) {
             pkt->size=msize;
-            pkt->hashid=store->net->id;
+            pkt->hashid=store->id;
             pkt->nodeid=store->net->self;
             pkt->op=OP_SET;
             memcpy(&pkt->data[0],eptr->key,keysize);
@@ -447,32 +443,6 @@ void repl_close(list_store_t *store)
         if (store->net) free(store->net);
         store->net=NULL;
     }
-}
-
-/**
- * @brief Function return a list that matches the version calculated by python
- * @param a pointer to hash source item
- * @param s size of item to hash
- * Example:
- * \code{.c}
- * propMsg=tlv;
- * h=pyHash(&propMsg,sizeof(propMsg));
- * \endcode
- * @return hash value
- */
-static uint32_t pyHash(const uint8_t *a,int s,int32_t x)
-{
-    register int len=s;
-    const register uint8_t *p=a;
-    //register int64_t x;
-
-    x |= *p << 7;
-    while (--len >= 0)
-        x = (1000003*x) ^ *p++;
-    x ^= s;
-    if (x == -1)
-        x = -2;
-    return ((uint32_t) (x&0xffffffff));
 }
 
 /** Indicates when data is available on the listen or accepted socket using

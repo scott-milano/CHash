@@ -74,6 +74,8 @@ bool _list_items(list_store_t *store,int index,void *key,void *value);
 int  _list_index(list_store_t *store,void *keyref);
 bool _list_insert(list_store_t *store,void *keyref,void *value);
 bool _list_netstart(list_store_t *store, uint16_t port);
+bool _list_load(list_store_t *store,char *file);
+bool _list_save(list_store_t *store,char *file);
 bool _list_free(list_store_t *store);
 bool _list_remove(list_store_t *store,void *keyref);
 bool _list_lock(list_store_t *store,void *keyref,bool lock);
@@ -106,6 +108,7 @@ struct list_type_info {
  */
 struct list_store {
     const char *name;           /**< Name of hash */
+    uint32_t id;                /**< Hash Id unique to data types */
     void *list;                 /**< Hash storage pointer */
     int imax;                   /**< Initial max size */
     int max;                    /**< Current max size */
@@ -125,7 +128,8 @@ typedef char* STR;
 #define HASH_MAX_STR 80 /**< Max key length for the @ref DEFINE_HASH_STRKEY key */
 
 /**
- * @brief List generation macro
+ * @brief List generation macro.
+ * This is the static version of the List.
  * @param HN Hash name prefix.  Accessor functions begin with this name
  * @param HK Type for list key.  Must be a defined type, and not a pointer to a type.
  * @param HV Type for list value.  Must be a defined type, and not a pointer to a type.
@@ -149,11 +153,16 @@ typedef char* STR;
     LIST_FUNCTION_INDEX(HN,&key) \
     LIST_FUNCTION_HASKEY(HN,&key) \
     LIST_FUNCTION_DEL(HN,&key) \
+    LIST_FUNCTION_LOAD(HN) \
+    LIST_FUNCTION_SAVE(HN) \
     LIST_FUNCTION_FREE(HN) \
     LIST_FUNCTION_NETSTART(HN) \
+    DECLARE_HANDLER_TYPE(HN) \
+    DECLARE_INSTANCE(HN)
 
 /**
  * @brief Hash generation macro
+ * This is the static version of the Hash.
  * @param HN Hash name prefix.  Accessor functions begin with this name
  * @param HV Type for list value.  Must be a defined type, and not a pointer to a type.
  * Key type for this list type is a variable length string
@@ -177,8 +186,12 @@ typedef char* STR;
     LIST_FUNCTION_INDEX(HN,key) \
     LIST_FUNCTION_HASKEY(HN,key) \
     LIST_FUNCTION_DEL(HN,key) \
+    LIST_FUNCTION_LOAD(HN) \
+    LIST_FUNCTION_SAVE(HN) \
     LIST_FUNCTION_FREE(HN) \
     LIST_FUNCTION_NETSTART(HN) \
+    DECLARE_HANDLER_TYPE(HN) \
+    DECLARE_INSTANCE(HN)
 
 
 /**
@@ -208,8 +221,12 @@ typedef char* STR;
     LIST_FUNCTION_INDEX(HN,&key) \
     LIST_FUNCTION_HASKEY(HN,&key) \
     LIST_FUNCTION_DEL(HN,&key) \
+    LIST_FUNCTION_LOAD(HN) \
+    LIST_FUNCTION_SAVE(HN) \
     LIST_FUNCTION_FREE(HN) \
     LIST_FUNCTION_NETSTART(HN) \
+    DECLARE_HANDLER_TYPE(HN) \
+    DECLARE_INSTANCE(HN)
 
 /**
  * @brief Hash generation macro
@@ -235,8 +252,13 @@ typedef char* STR;
     LIST_FUNCTION_INDEX(HN,key) \
     LIST_FUNCTION_HASKEY(HN,key) \
     LIST_FUNCTION_DEL(HN,key) \
+    LIST_FUNCTION_LOAD(HN) \
+    LIST_FUNCTION_SAVE(HN) \
     LIST_FUNCTION_FREE(HN) \
-    LIST_FUNCTION_KEYS(HN,&key)
+    LIST_FUNCTION_KEYS(HN,&key) \
+    LIST_FUNCTION_NETSTART(HN) \
+    DECLARE_HANDLER_TYPE(HN) \
+    DECLARE_INSTANCE(HN)
 
 /**
  * @brief List and Hash storage structure creation macro
@@ -255,6 +277,42 @@ typedef char* STR;
 #define LIST_TYPEINFO(KT) {.name=KT##_name,.size=sizeof(KT), \
     .cmp=KT##_cmp, .alloc=KT##_alloc, .cp=KT##_cp, .sz=KT##_sz,\
 }
+
+/** Internal macro used by DEFINE_LIST/DEFINE_HASH */
+#define DECLARE_HANDLER_TYPE(HN) \
+    typedef struct { \
+        bool (*get)(HN##_k,HN##_v*); \
+        bool (*set)(HN##_k,HN##_v); \
+        HN##_v* (*addr)(HN##_k); \
+        HN##_v (*val)(HN##_k); \
+        int (*count)(void); \
+        HN##_k (*key)(int); \
+        bool (*item)(int,HN##_v*); \
+        int (*index)(HN##_k); \
+        bool (*hasKey)(HN##_k); \
+        bool (*del)(HN##_k); \
+        bool (*load)(char*); \
+        bool (*save)(char*); \
+        bool (*free)(void); \
+    } HN##_handler_t;
+
+/** An instance of the LIST/HASH that includes methods for accessing data */
+#define DECLARE_INSTANCE(HN) \
+    HN##_handler_t HN={ \
+        .get=HN##Get, \
+        .set=HN##Set, \
+        .addr=HN##Ptr, \
+        .val=HN##Val, \
+        .count=HN##Count, \
+        .key=HN##Keys, \
+        .item=HN##Item, \
+        .index=HN##Index, \
+        .hasKey=HN##HasKey, \
+        .del=HN##Del, \
+        .load=HN##Load, \
+        .save=HN##Save, \
+        .free=HN##Free, \
+    };
 
 /**
  * Macro to generate handler functions for key.
@@ -408,7 +466,6 @@ typedef char* STR;
         _list_copy(&HN##_store, KEY, &ret);\
         return ret; \
     } \
-
 
 /**
  * @par ListCount static inline int LNameCount(void)
@@ -589,6 +646,38 @@ typedef char* STR;
     { \
         return _list_netstart(&HN##_store,port); \
     }\
+
+/**
+ * @par ListLoad static inline bool LNameLoad(char *file)
+ * Load data from file into hash.
+ * @return true if list has been loaded without issue
+ * @return false list load has failed
+ * \code{.c}
+ * void ListLoad("/var/data/datafile.hash");
+ * \endcode
+ * 
+ */
+#define LIST_FUNCTION_LOAD(HN) \
+    static inline bool HN##Load(char *file) \
+    { \
+        return _list_load(&HN##_store,file);\
+    }
+
+/**
+ * @par ListSave static inline bool LNameSave(char *file)
+ * Save data from file into hash.
+ * @return true if list has been loaded without issue
+ * @return false list load has failed
+ * \code{.c}
+ * void ListSave("/var/data/datafile.hash");
+ * \endcode
+ * 
+ */
+#define LIST_FUNCTION_SAVE(HN) \
+    static inline bool HN##Save(char *file) \
+    { \
+        return _list_save(&HN##_store,file);\
+    }
 
 /**
  * @par ListFree static inline bool LNameFree(void)

@@ -99,13 +99,13 @@ static char *testHashSet()
 
     /* Test setting 2=10, and count doesn't increase */
     key1=2; expect1=10;
-    ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
-    mu_assert("Count increase",Test1Count()==(int) key1);
-    result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
+    ret=Test1.set(key1,expect1); mu_assert("Set Value",ret);
+    mu_assert("Count increase",Test1.count()==(int) key1);
+    result1=Test1.val(key1); mu_assert("Set Value result",expect1==result1);
     key2=key1Tokey2(key1); expect2=(TV2) expect1;
-    ret=Test2Set(key2,expect2); mu_assert("Set Value",ret);
-    mu_assert("Count increase",Test2Count()==(int) key1);
-    result2=Test2Val(key2); mu_assert("Set Value result",expect2==result2);
+    ret=Test2.set(key2,expect2); mu_assert("Set Value",ret);
+    mu_assert("Count increase",Test2.count()==(int) key1);
+    result2=Test2.val(key2); mu_assert("Set Value result",expect2==result2);
 
     /* Test setting 2=2 */
     key1=2; expect1=key2value(key1);
@@ -119,13 +119,13 @@ static char *testHashSet()
 
     /* Test setting 3=3 */
     key1=3; expect1=key2value(key1);
-    ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
-    mu_assert("Count increase",Test1Count()==(int) key1);
-    result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
+    ret=Test1.set(key1,expect1); mu_assert("Set Value",ret);
+    mu_assert("Count increase",Test1.count()==(int) key1);
+    result1=Test1.val(key1); mu_assert("Set Value result",expect1==result1);
     key2=key1Tokey2(key1); expect2=(TV2) expect1;
-    ret=Test2Set(key2,expect2); mu_assert("Set Value",ret);
-    mu_assert("Count increase",Test2Count()==(int) key1);
-    result2=Test2Val(key2); mu_assert("Set Value result",expect2==result2);
+    ret=Test2.set(key2,expect2); mu_assert("Set Value",ret);
+    mu_assert("Count increase",Test2.count()==(int) key1);
+    result2=Test2.val(key2); mu_assert("Set Value result",expect2==result2);
 
     /* Test setting 4=4 */
     key1=4; expect1=key2value(key1);
@@ -139,13 +139,13 @@ static char *testHashSet()
 
     /* Test setting 5=5 */
     key1=5; expect1=key2value(key1);
-    ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
-    mu_assert("Count increase",Test1Count()==(int) key1);
-    result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
+    ret=Test1.set(key1,expect1); mu_assert("Set Value",ret);
+    mu_assert("Count increase",Test1.count()==(int) key1);
+    result1=Test1.val(key1); mu_assert("Set Value result",expect1==result1);
     key2=key1Tokey2(key1); expect2=(TV2) expect1;
-    ret=Test2Set(key2,expect2); mu_assert("Set Value",ret);
-    mu_assert("Count increase",Test2Count()==(int) key1);
-    result2=Test2Val(key2); mu_assert("Set Value result",expect2==result2);
+    ret=Test2.set(key2,expect2); mu_assert("Set Value",ret);
+    mu_assert("Count increase",Test2.count()==(int) key1);
+    result2=Test2.val(key2); mu_assert("Set Value result",expect2==result2);
 
     /* Test setting 6=6 */
     key1=6; expect1=key2value(key1);
@@ -192,16 +192,23 @@ static char *testHashGet()
     ret=Test1Get(key1,&result1); mu_assert("Missing key1 Get",!ret);
     ret=Test2Get(key2,&result2); mu_assert("Missing key1 Get",!ret);
 
+    /* Get with missing key1 */
+    key1=10; key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=Test1.get(key1,&result1); mu_assert("Missing key1 Get",!ret);
+    ret=Test2.get(key2,&result2); mu_assert("Missing key1 Get",!ret);
+
 
     /* Get pointer with deleted key1 */
     key1=6; key2=key1Tokey2(key1); g_count--;
     ret=Test1Del(key1); mu_assert("Delete of key1 successful",ret);
-    ret=Test2Del(key2); mu_assert("Delete of key1 successful",ret);
+    ret=Test2.del(key2); mu_assert("Delete of key1 successful",ret);
     mu_assert("Count decrease",Test1Count()==g_count);
     mu_assert("Count decrease",Test2Count()==g_count);
 
     ret=Test1Get(key1,&result1); mu_assert("Missing key1 Get",!ret);
     ret=Test2Get(key2,&result2); mu_assert("Missing key1 Get",!ret);
+    ret=Test1.get(key1,&result1); mu_assert("Missing key1 Get",!ret);
+    ret=Test2.get(key2,&result2); mu_assert("Missing key1 Get",!ret);
 
     return 0;
 }
@@ -228,18 +235,25 @@ static char *testHashPtr()
     key2=key1Tokey2(key1); expect2=(TV2) expect1;
     result2=Test2Ptr(key2); mu_assert("Successful Get",expect2==*result2);
     count=Test2Count(); mu_assert("Count increase",count==g_count);
+    key1=1; expect1=key1;key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    result1=Test1.addr(key1); mu_assert("Successful Get",expect1==*result1);
+    key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    result2=Test2.addr(key2); mu_assert("Successful Get",expect2==*result2);
+    count=Test2.count(); mu_assert("Count increase",count==g_count);
 
     /* Get pointer with missing key1 */
     key1=10; key2=key1Tokey2(key1); expect2=(TV2) expect1;
     result1=Test1Ptr(key1); mu_assert("Missing key1 Get",!result1);
     result2=Test2Ptr(key2); mu_assert("Missing key1 Get",!result2);
+    result1=Test1.addr(key1); mu_assert("Missing key1 Get",!result1);
+    result2=Test2.addr(key2); mu_assert("Missing key1 Get",!result2);
 
 
     /* Get pointer with deleted key1 */
     key1=6; key2=key1Tokey2(key1); g_count--;
-    mu_assert("Delete of key1 successful",ret=Test1Del(key1));
+    mu_assert("Delete of key1 successful",ret=Test1.del(key1));
     mu_assert("Delete of key2 successful",ret=Test2Del(key2));
-    mu_assert("Count decrease",g_count==Test1Count());
+    mu_assert("Count decrease",g_count==Test1.count());
     mu_assert("Count decrease",g_count==Test2Count());
 
     result1=Test1Ptr(key1); mu_assert("Missing key1 Get",!result1);
@@ -265,13 +279,17 @@ static char *testHashVal()
     /* Get key1 with value from previous test */
     key1=1; expect1=key1;key2=key1Tokey2(key1); expect2=(TV2) expect1;
     result1=Test1Val(key1); mu_assert("Successful Val",expect1==result1);
+    result1=Test1.val(key1); mu_assert("Successful Val",expect1==result1);
     key2=key1Tokey2(key1); expect2=(TV2) expect1;
     result2=Test2Val(key2); mu_assert("Successful Val",expect2==result2);
+    result2=Test2.val(key2); mu_assert("Successful Val",expect2==result2);
 
     /* Get pointer with missing key1 */
     key1=10; key2=key1Tokey2(key1); expect2=(TV2) expect1;
     result1=Test1Val(key1); mu_assert("Missing key1 Get",!result1);
     result2=Test2Val(key2); mu_assert("Missing key1 Get",!result2);
+    result1=Test1.val(key1); mu_assert("Missing key1 Get",!result1);
+    result2=Test2.val(key2); mu_assert("Missing key1 Get",!result2);
 
 
     /* Get pointer with deleted key1 */
@@ -334,7 +352,7 @@ static char *testHashKeys()
     input1=key2index(key1);
     input2=input1;
     result1=Test1Keys(input1);
-    result2=Test2Keys(input2);
+    result2=Test2.key(input2);
     /* Add wrap if needed */
     expect1=key2index(key1);
     if (input1<0) expect1=(((int)expect1)%g_count)+g_count;
@@ -346,7 +364,7 @@ static char *testHashKeys()
 
     /* Test wrap if list size is 0 */
     Test1Free();
-    Test2Free();
+    Test2.free();
     g_count=0;
     mu_assert("Count decrease",g_count==Test1Count());
     mu_assert("Count decrease",g_count==Test2Count());
@@ -375,21 +393,27 @@ static char *testHashIndex()
     key1=1; key2=key1Tokey2(key1); expect1=key2index(key1); expect2=(int) expect1;
     result1=Test1Index(key1); mu_assert("Successful Index",expect1==result1);
     result2=Test2Index(key2); mu_assert("Successful Index",expect2==result2);
+    result1=Test1.index(key1); mu_assert("Successful Index",expect1==result1);
+    result2=Test2.index(key2); mu_assert("Successful Index",expect2==result2);
 
     /* Get pointer with missing key1 */
     key1=-101; key2=key1Tokey2(key1); expect1=-1; expect2=(int) expect1;
     result1=Test1Index(key1); mu_assert("Missing Index",expect1==result1);
     result2=Test2Index(key2); mu_assert("Missing Index",expect2==result2);
+    result1=Test1.index(key1); mu_assert("Missing Index",expect1==result1);
+    result2=Test2.index(key2); mu_assert("Missing Index",expect2==result2);
 
     /* Test after delete of existing key */
     key1=6; key2=key1Tokey2(key1); g_count--;
     expect1=-1; expect2=(int) expect1;
     mu_assert("Delete of key1 successful",ret=Test1Del(key1));
     mu_assert("Delete of key2 successful",ret=Test2Del(key2));
-    mu_assert("Count decrease",g_count==Test1Count());
-    mu_assert("Count decrease",g_count==Test2Count());
+    mu_assert("Count decrease",g_count==Test1.count());
+    mu_assert("Count decrease",g_count==Test2.count());
     result1=Test1Index(key1); mu_assert("Missing Index",expect1==result1);
     result2=Test2Index(key2); mu_assert("Missing Index",expect2==result2);
+    result1=Test1.index(key1); mu_assert("Missing Index",expect1==result1);
+    result2=Test2.index(key2); mu_assert("Missing Index",expect2==result2);
 
     return 0;
 }
@@ -477,11 +501,15 @@ static char *testHashHasKey()
     key2=key1Tokey2(key1); expect2=(int) expect1;
     mu_assert("HashHasKey Successful HasKey",Test1HasKey(key1));
     mu_assert("HashHasKey Successful HasKey",Test2HasKey(key2));
+    mu_assert("HashHasKey Successful HasKey",Test1.hasKey(key1));
+    mu_assert("HashHasKey Successful HasKey",Test2.hasKey(key2));
 
     key1=7; expect1=key1;
     key2=key1Tokey2(key1); expect2=(int) expect1;
     mu_assert("HashHasKey Missing Key",!Test1HasKey(key1));
     mu_assert("HashHasKey Missing Key",!Test2HasKey(key2));
+    mu_assert("HashHasKey Missing Key",!Test1.hasKey(key1));
+    mu_assert("HashHasKey Missing Key",!Test2.hasKey(key2));
     
     key1=3; expect1=key1;g_count--;
     key2=key1Tokey2(key1); expect2=(int) expect1;
@@ -520,11 +548,11 @@ static char *testHashDel()
     mu_assert("HashHasKey Remainging after delete",Test1HasKey(key1));
     mu_assert("HashHasKey Successful after delete",Test2HasKey(key2));
     key1=2; key2=key1Tokey2(key1);
-    mu_assert("HashHasKey Remainging after delete",Test1HasKey(key1));
-    mu_assert("HashHasKey Successful after delete",Test2HasKey(key2));
+    mu_assert("HashHasKey Remainging after delete",Test1.hasKey(key1));
+    mu_assert("HashHasKey Successful after delete",Test2.hasKey(key2));
     key1=5; key2=key1Tokey2(key1);
-    mu_assert("HashHasKey Remainging after delete",Test1HasKey(key1));
-    mu_assert("HashHasKey Successful after delete",Test2HasKey(key2));
+    mu_assert("HashHasKey Remainging after delete",Test1.hasKey(key1));
+    mu_assert("HashHasKey Successful after delete",Test2.hasKey(key2));
     key1=6; key2=key1Tokey2(key1);
     mu_assert("HashHasKey Remainging after delete",Test1HasKey(key1));
     mu_assert("HashHasKey Successful after delete",Test2HasKey(key2));
@@ -555,8 +583,8 @@ static char *testHashDel()
     key1=0; key2=key1Tokey2(key1);
     mu_assert("HashHasKey Deleted HasKey",!Test1HasKey(key1));
     mu_assert("HashHasKey Deleted HasKey",!Test2HasKey(key2));
-    mu_assert("HashDel Missing Key",!Test1Del(key1));
-    mu_assert("HashDel Missing Key",!Test2Del(key2));
+    mu_assert("HashDel Missing Key",!Test1.del(key1));
+    mu_assert("HashDel Missing Key",!Test2.del(key2));
 
 
     return 0;
@@ -704,6 +732,75 @@ static char *testForEach()
     }
     mu_assert("Delete Entry final count",0==Test2Count());
     
+    return 0;
+}
+
+/** Test for Load/Save */
+static char *testHashLoad()
+{
+    TK1 key1=1;
+    TK2 key2=buf;
+    TV1 expect1;
+    TV1 result1;
+    TV2 expect2;
+    TV2 result2;
+    bool ret;
+    int count=g_count;
+
+    /* Note uses values from previous case */
+    mu_assert("Existing key1",!testHashSet());
+
+    mu_assert("Save Test 1",Test1.save("/tmp/test1.hash"));
+    mu_assert("Save Test 2",Test2Save("/tmp/test2.hash"));
+
+    mu_assert("Free returns successful",Test1Free());
+    mu_assert("Free returns successful",Test2Free());
+
+    mu_assert("Test1 is Empty",Test1Count()==0);
+    mu_assert("Test2 is Empty",Test2Count()==0);
+
+    mu_assert("Load Test 1",Test1Load("/tmp/test1.hash"));
+    mu_assert("Load Test 2",Test2.load("/tmp/test2.hash"));
+    mu_assert("Load Test 2",Test2.load("/tmp/test2.hash"));
+
+    unlink("/tmp/test1.hash");
+    unlink("/tmp/test2.hash");
+
+    count=Test1Count(); mu_assert("Count increase",count==g_count);
+    count=Test2Count(); mu_assert("Count increase",count==g_count);
+
+    /* Get key1 with value from previous test */
+    key1=1; expect1=key1;key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=Test1Get(key1,&result1); mu_assert("Successful Get",ret);
+    mu_assert("Existing key1",expect1==result1);
+    key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=Test2Get(key2,&result2); mu_assert("Successful Get",ret);
+    mu_assert("Existing key1",expect2==result1);
+    count=Test2Count(); mu_assert("Count increase",count==g_count);
+
+    /* Get with missing key1 */
+    key1=10; key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=Test1Get(key1,&result1); mu_assert("Missing key1 Get",!ret);
+    ret=Test2Get(key2,&result2); mu_assert("Missing key1 Get",!ret);
+
+    /* Get with missing key1 */
+    key1=10; key2=key1Tokey2(key1); expect2=(TV2) expect1;
+    ret=Test1.get(key1,&result1); mu_assert("Missing key1 Get",!ret);
+    ret=Test2.get(key2,&result2); mu_assert("Missing key1 Get",!ret);
+
+
+    /* Get pointer with deleted key1 */
+    key1=6; key2=key1Tokey2(key1); g_count--;
+    ret=Test1Del(key1); mu_assert("Delete of key1 successful",ret);
+    ret=Test2.del(key2); mu_assert("Delete of key1 successful",ret);
+    mu_assert("Count decrease",Test1Count()==g_count);
+    mu_assert("Count decrease",Test2Count()==g_count);
+
+    ret=Test1Get(key1,&result1); mu_assert("Missing key1 Get",!ret);
+    ret=Test2Get(key2,&result2); mu_assert("Missing key1 Get",!ret);
+    ret=Test1.get(key1,&result1); mu_assert("Missing key1 Get",!ret);
+    ret=Test2.get(key2,&result2); mu_assert("Missing key1 Get",!ret);
+
     return 0;
 }
 
@@ -967,6 +1064,7 @@ static char * testLargeHash(void)
     char buf[80];
     uint32_t h;
     int v;
+    int count;
 
     /* Set items and ensure count is correct */
     for (i=0;i<max;i++) {
@@ -1022,6 +1120,10 @@ static char * testLargeHash(void)
         }
     }
     TIMEINFO("Set List again");/* Print time info if enabled */
+    count=Test7.count();
+    Test7.save("/tmp/test7.hash");
+    Test8.save("/tmp/test8.hash");
+    TIMEINFO("Save Done");/* Print time info if enabled */
     Test7Free();
     Test8Free();
     TIMEINFO("Two Frees full list done");/* Print time info if enabled */
@@ -1031,7 +1133,30 @@ static char * testLargeHash(void)
     Test8Free();
     mu_assert("Free Hash Count",Test7Count()==0);
     mu_assert("Free Hash Count",Test8Count()==0);
+    /* Set items and ensure count is correct */
+    TIMEINFO("Set allocated List again");/* Print time info if enabled */
+    Test7.load("/tmp/test7.hash");
+    Test8.load("/tmp/test8.hash");
+    unlink("/tmp/test7.hash");
+    unlink("/tmp/test8.hash");
+    mu_assert("Free Hash Count",Test7Count()==count);
+    mu_assert("Free Hash Count",Test8Count()==count);
+    for (i=0;i<max;i++) {
+        uint32_t u7;
+        uint64_t u8;
+        h=Test5Val(i)>>1;
+        sprintf(buf,"%d",i);
+        mu_assert("Get Loaded Value",Test7Get(h,&u7));
+        mu_assert("Check Loaded Value",u7==i);
+        mu_assert("Get Loaded Value",Test8Get(buf,&u8));
+        mu_assert("Check Loaded Value",u8==h);
+    }
     TIMEINFO("Complete");/* Print time info if enabled */
+
+    Test7Free();
+    Test8Free();
+    mu_assert("Free Hash Count",Test7Count()==0);
+    mu_assert("Free Hash Count",Test8Count()==0);
 
     /* Set items and ensure count is correct */
     {
@@ -1226,6 +1351,7 @@ static char * all_tests() {
     mu_run_test(testHashHasKey);
     mu_run_test(testHashDel);
     mu_run_test(testForEach);
+    mu_run_test(testHashLoad);
     mu_run_test(testHashFree);
     mu_run_test(testNetShare);
     DBUG_SW(false);
@@ -1293,18 +1419,19 @@ static inline uint64_t usecelapsed()
  * @brief Function return a list that matches the version calculated by python
  * @param a pointer to hash source item
  * @param s size of item to hash
+ * @param x current sum for accumulating multiple sums
  * Example:
  * \code{.c}
  * propMsg=tlv;
- * h=pyHash(&propMsg,sizeof(propMsg));
+ * h=pyHash(&propMsg,sizeof(propMsg),0);
  * \endcode
  * @return hash value
  */
 uint32_t pyHash(uint8_t *a,int s)
 {
-    register int len=s;
-    register uint8_t *p=a;
-    register int64_t x;
+    int len=s;
+    uint8_t *p=a;
+    uint32_t x=0;
 
     x = *p << 7;
     while (--len >= 0)
