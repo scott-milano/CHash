@@ -44,12 +44,12 @@
 #include "repl.h"
 
 /** Return current time as long in miliseconds since epoch.
- * @return System time in miliseconds since epoch
+ * @return Time in miliseconds since boot
  */
 static inline long mtime() {
-   struct timeval tp;
-   gettimeofday( &tp, NULL );
-   return tp.tv_sec*1000 + tp.tv_usec/1000;
+   struct timespec ts;
+   clock_gettime(CLOCK_MONOTONIC_COARSE,&ts);
+   return ts.tv_sec*1000 + ts.tv_nsec/1000000;
 }
 
 int processOp(list_store_t *store,uint8_t op,id_t node,void* data,int bytes);
@@ -290,6 +290,15 @@ int processOp(list_store_t *store,uint8_t op,id_t node,void* data,int bytes)
                 keySize=store->key.sz(key);
                 if (bytes>=keySize) {
                     int index;
+#ifdef LIST_ENTRY_LOCK
+                    /* Check if we have index. with the two locks, entry and
+                     * list, we have more to do for cleanup to avoid holding
+                     * both at the same time. */
+                    index=_list_index(store,keyref);
+                    if (index<0) return false;
+                    _delete_lock(store,index);
+#endif
+                    /* Grab the lock and enure the entry key is still valid */
                     pthread_mutex_lock(&store->lock);
                     index=_find_index(store,key);
                     dbgindex(index);

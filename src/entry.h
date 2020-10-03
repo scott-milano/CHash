@@ -45,6 +45,10 @@ typedef struct {
 void *_hash_search(list_store_t *store,void *keyref,void *valref);
 int _find_index(list_store_t *store,void *keyref);
 void _delete_entry(list_store_t *store,int index);
+#ifdef LIST_ENTRY_LOCK
+/* Delete lock by index */
+bool _delete_lock(list_store_t *store,int index);
+#endif
 
 #ifdef __cplusplus
 }

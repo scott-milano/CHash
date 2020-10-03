@@ -590,10 +590,7 @@ static char *testHashDel()
     return 0;
 }
 
-
-
 DEFINE_LIST(Test3,int,test_fields_t);
-//DEFINE_HASH(Test4,test_fields_t);
 DECLARE_LIST(Test4);
 DEFINE_LIST_ITERATOR(Test3,int,ifield)
 DEFINE_LIST_ITERATOR(Test3,bool,bfield)
@@ -617,15 +614,6 @@ static char *testForEach()
 
     /* Note uses values from previous case */
     mu_assert("Existing Key",!testHashSet());
-
-    /* Note uses values from previous case */
-    in=0; HASH_FOREACH(Test1,result1) {
-        mu_assert("HashForEach next val",key2value(++in)==result1);
-    }
-
-    in=0; HASH_FOREACH(Test2,result2) {
-        mu_assert("HashForEach next val",key2value(++in)==result2);
-    }
 
     for (in=0;in<20;in++) {
         /* Set fields */
@@ -801,6 +789,84 @@ static char *testHashLoad()
     ret=Test1.get(key1,&result1); mu_assert("Missing key1 Get",!ret);
     ret=Test2.get(key2,&result2); mu_assert("Missing key1 Get",!ret);
 
+
+    return 0;
+}
+
+DEFINE_FIFO(Test5,TV1);
+DECLARE_LIST(Test6);
+/** Test for Fifo */
+static char *testFifo()
+{
+    TV1 result5;
+    TV2 result6;
+    TV1 expect5;
+    TV2 expect6;
+    int count=0;
+    bool ret;
+    //DBUG_SW(true);
+
+    expect5=(TV1) 1;
+    expect6=(TV2) 1;
+    ret=Test5Push(expect5); mu_assert("Push Value",ret); count++;
+    ret=Test6Push(expect6); mu_assert("Push Value",ret);
+    mu_assert("FIFOPush count increase",Test5Count()==count);
+    mu_assert("FIFOPush count increase",Test6Count()==count);
+    ret=Test5Pop(&result5); mu_assert("Set Value result",expect5==result5); count--;
+    ret=Test6Pop(&result6); mu_assert("Set Value result",expect6==result6);
+    mu_assert("FifoPop count decrease",Test5Count()==count);
+    mu_assert("FifoPop count decrease",Test6Count()==count);
+
+    expect5=(TV1) 1;
+    expect6=(TV2) 1;
+    ret=Test5Push(expect5); mu_assert("Push Value",ret); count++;
+    ret=Test6Push(expect6); mu_assert("Push Value",ret);
+    mu_assert("FIFOPush count increase",Test5Count()==count);
+    mu_assert("FIFOPush count increase",Test6Count()==count);
+
+    expect5=(TV1) 2;
+    expect6=(TV2) 2;
+    ret=Test5Push(expect5); mu_assert("Push Value",ret); count++;
+    ret=Test6Push(expect6); mu_assert("Push Value",ret);
+    mu_assert("FIFOPush count increase",Test5Count()==count);
+    mu_assert("FIFOPush count increase",Test6Count()==count);
+
+    expect5=(TV1) 3;
+    expect6=(TV2) 3;
+    ret=Test5.push(expect5); mu_assert("Push Value",ret); count++;
+    ret=Test6.push(expect6); mu_assert("Push Value",ret);
+    mu_assert("FIFOPush count increase",Test5Count()==count);
+    mu_assert("FIFOPush count increase",Test6Count()==count);
+
+    expect5=0; HASH_FOREACH(Test5,result5) {
+        mu_assert("HashForEach5 next val",++expect5==result5);
+    }
+    expect6=0; HASH_FOREACH(Test6,result6) {
+        mu_assert("HashForEach6 next val",++expect6==result6);
+    }
+
+    expect5=3;
+    expect6=1;
+    ret=Test5Pop(&result5); mu_assert("Set Value result",expect5==result5); count--;
+    ret=Test6Next(&result6); mu_assert("Set Value result",expect6==result6);
+    mu_assert("FifoPop count decrease",Test5Count()==count);
+    mu_assert("FifoPop count decrease",Test6Count()==count);
+
+    expect5=2;
+    expect6=2;
+    ret=Test5.pop(&result5); mu_assert("Set Value result",expect5==result5); count--;
+    ret=Test6.next(&result6); mu_assert("Set Value result",expect6==result6);
+    mu_assert("FifoPop count decrease",Test5Count()==count);
+    mu_assert("FifoPop count decrease",Test6Count()==count);
+
+    expect5=1;
+    expect6=3;
+    ret=Test5Pop(&result5); mu_assert("Set Value result",expect5==result5); count--;
+    ret=Test6Next(&result6); mu_assert("Set Value result",expect6==result6);
+    mu_assert("FifoPop count decrease",Test5Count()==count);
+    mu_assert("FifoPop count decrease",Test6Count()==count);
+    DBUG_SW(false);
+
     return 0;
 }
 
@@ -827,9 +893,9 @@ static char *testHashFree()
 }
 
 /* Test shared list */
-DEFINE_LIST(Test9,TK1,TV1);
-DEFINE_LIST(TestA,TK1,TV1);
 DEFINE_LIST(TestB,TK1,TV1);
+DEFINE_LIST(TestC,TK1,TV1);
+DEFINE_LIST(TestD,TK1,TV1);
 DEFINE_HASH(TestS1,TV1);
 DEFINE_HASH(TestS2,TV1);
 
@@ -841,11 +907,11 @@ static char * testNetShare(void)
     TV2 result2;
     TV1 expect1;
     TV1 result1;
-    TK1 key9;
-    TV1 expect9;
-    TV1 result9;
-    TV1 resultA;
+    TK1 keyB;
+    TV1 expectB;
     TV1 resultB;
+    TV1 resultC;
+    TV1 resultD;
     bool ret;
     int netPort=6501;
 #ifdef TIMETEST
@@ -855,151 +921,151 @@ static char * testNetShare(void)
     Test1Free();
 
     Test1NetStart(netPort);
-    Test9NetStart(netPort);
-    TestANetStart(netPort);
+    TestBNetStart(netPort);
+    TestCNetStart(netPort);
 
     key1=1;    expect1=key2value(key1);
-    key9=key1; expect9=key2value(key9);
+    keyB=key1; expectB=key2value(keyB);
     ret=Test1Set(key1,expect1); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
-    mu_assert("Count increase",Test9Count()==(int) key1);
-    result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
-    mu_assert("Count increase",TestACount()==(int) key1);
-    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
-    mu_assert("Count increase",TestBCount()==(int) 0);
+    mu_assert("Count increase",TestBCount()==(int) key1);
+    resultB=TestBVal(keyB); mu_assert("Set Value result",expectB==resultB);
+    mu_assert("Count increase",TestCCount()==(int) key1);
+    resultC=TestCVal(key1); mu_assert("Set Value result",expect1==resultC);
+    mu_assert("Count increase",TestDCount()==(int) 0);
 
     key1=2;    expect1=key2value(key1);
-    key9=key1; expect9=key2value(key9);
-    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret); usleep(10000);
+    keyB=key1; expectB=key2value(keyB);
+    ret=TestBSet(keyB,expectB); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
-    mu_assert("Count increase",Test9Count()==(int) key1);
-    result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
-    mu_assert("Count increase",TestACount()==(int) key1);
-    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
-    mu_assert("Count increase",TestBCount()==(int) 0);
+    mu_assert("Count increase",TestBCount()==(int) key1);
+    resultB=TestBVal(keyB); mu_assert("Set Value result",expectB==resultB);
+    mu_assert("Count increase",TestCCount()==(int) key1);
+    resultC=TestCVal(key1); mu_assert("Set Value result",expect1==resultC);
+    mu_assert("Count increase",TestDCount()==(int) 0);
 
-    TestBNetStart(netPort);
+    TestDNetStart(netPort);
 
     sleep(1);
     key1=3;    expect1=key2value(key1);
-    key9=key1; expect9=key2value(key9);
+    keyB=key1; expectB=key2value(keyB);
     ret=Test1Set(key1,expect1); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
-    mu_assert("Count increase",Test9Count()==(int) key1);
-    result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
-    mu_assert("Count increase",TestACount()==(int) key1);
-    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
     mu_assert("Count increase",TestBCount()==(int) key1);
-    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
+    resultB=TestBVal(keyB); mu_assert("Set Value result",expectB==resultB);
+    mu_assert("Count increase",TestCCount()==(int) key1);
+    resultC=TestCVal(key1); mu_assert("Set Value result",expect1==resultC);
+    mu_assert("Count increase",TestDCount()==(int) key1);
+    resultD=TestDVal(key1); mu_assert("Set Value result",expect1==resultD);
 
     key1=4;    expect1=key2value(key1);
-    key9=key1; expect9=key2value(key9);
-    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret); usleep(10000);
+    keyB=key1; expectB=key2value(keyB);
+    ret=TestBSet(keyB,expectB); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
-    mu_assert("Count increase",Test9Count()==(int) key1);
-    result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
-    mu_assert("Count increase",TestACount()==(int) key1);
-    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
     mu_assert("Count increase",TestBCount()==(int) key1);
-    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
+    resultB=TestBVal(keyB); mu_assert("Set Value result",expectB==resultB);
+    mu_assert("Count increase",TestCCount()==(int) key1);
+    resultC=TestCVal(key1); mu_assert("Set Value result",expect1==resultC);
+    mu_assert("Count increase",TestDCount()==(int) key1);
+    resultD=TestDVal(key1); mu_assert("Set Value result",expect1==resultD);
 
     key1=5;    expect1=key2value(key1);
-    key9=key1; expect9=key2value(key9);
+    keyB=key1; expectB=key2value(keyB);
     ret=Test1Set(key1,expect1); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
-    mu_assert("Count increase",Test9Count()==(int) key1);
-    result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
-    mu_assert("Count increase",TestACount()==(int) key1);
-    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
     mu_assert("Count increase",TestBCount()==(int) key1);
-    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
+    resultB=TestBVal(keyB); mu_assert("Set Value result",expectB==resultB);
+    mu_assert("Count increase",TestCCount()==(int) key1);
+    resultC=TestCVal(key1); mu_assert("Set Value result",expect1==resultC);
+    mu_assert("Count increase",TestDCount()==(int) key1);
+    resultD=TestDVal(key1); mu_assert("Set Value result",expect1==resultD);
 
     key1=6;    expect1=key2value(key1);
-    key9=key1; expect9=key2value(key9);
-    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret); usleep(10000);
+    keyB=key1; expectB=key2value(keyB);
+    ret=TestBSet(keyB,expectB); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) key1);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
-    mu_assert("Count increase",Test9Count()==(int) key1);
-    result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
-    mu_assert("Count increase",TestACount()==(int) key1);
-    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
     mu_assert("Count increase",TestBCount()==(int) key1);
-    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
+    resultB=TestBVal(keyB); mu_assert("Set Value result",expectB==resultB);
+    mu_assert("Count increase",TestCCount()==(int) key1);
+    resultC=TestCVal(key1); mu_assert("Set Value result",expect1==resultC);
+    mu_assert("Count increase",TestDCount()==(int) key1);
+    resultD=TestDVal(key1); mu_assert("Set Value result",expect1==resultD);
 
     g_count=6;
     key1=2;    expect1=key2value(key1+10);
-    key9=key1; expect9=key2value(key9+10);
+    keyB=key1; expectB=key2value(keyB+10);
     ret=Test1Set(key1,expect1); mu_assert("Set Value",ret);
     mu_assert("Count increase",Test1Count()==(int) g_count); usleep(10000);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
-    mu_assert("Count increase",Test9Count()==(int) g_count);
-    result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
-    mu_assert("Count increase",TestACount()==(int) g_count);
-    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
     mu_assert("Count increase",TestBCount()==(int) g_count);
-    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
+    resultB=TestBVal(keyB); mu_assert("Set Value result",expectB==resultB);
+    mu_assert("Count increase",TestCCount()==(int) g_count);
+    resultC=TestCVal(key1); mu_assert("Set Value result",expect1==resultC);
+    mu_assert("Count increase",TestDCount()==(int) g_count);
+    resultD=TestDVal(key1); mu_assert("Set Value result",expect1==resultD);
 
     key1=3;    expect1=key2value(key1+10);
-    key9=key1; expect9=key2value(key9+10);
-    ret=Test9Set(key9,expect9); mu_assert("Set Value",ret); usleep(10000);
+    keyB=key1; expectB=key2value(keyB+10);
+    ret=TestBSet(keyB,expectB); mu_assert("Set Value",ret); usleep(10000);
     mu_assert("Count increase",Test1Count()==(int) g_count);
     result1=Test1Val(key1); mu_assert("Set Value result",expect1==result1);
-    mu_assert("Count increase",Test9Count()==(int) g_count);
-    result9=Test9Val(key9); mu_assert("Set Value result",expect9==result9);
-    mu_assert("Count increase",TestACount()==(int) g_count);
-    resultA=TestAVal(key1); mu_assert("Set Value result",expect1==resultA);
     mu_assert("Count increase",TestBCount()==(int) g_count);
-    resultB=TestBVal(key1); mu_assert("Set Value result",expect1==resultB);
+    resultB=TestBVal(keyB); mu_assert("Set Value result",expectB==resultB);
+    mu_assert("Count increase",TestCCount()==(int) g_count);
+    resultC=TestCVal(key1); mu_assert("Set Value result",expect1==resultC);
+    mu_assert("Count increase",TestDCount()==(int) g_count);
+    resultD=TestDVal(key1); mu_assert("Set Value result",expect1==resultD);
 
     key1=3;g_count--;
     ret=Test1Del(key1); mu_assert("Delete of key1 successful",ret); usleep(10000);
     mu_assert("Count decrease",Test1Count()==g_count);
     mu_assert("HashHasKey Deleted HasKey",!Test1HasKey(key1));
-    mu_assert("Count decrease",Test9Count()==g_count);
-    mu_assert("HashHasKey Deleted HasKey",!Test9HasKey(key1));
-    mu_assert("Count decrease",TestACount()==g_count);
-    mu_assert("HashHasKey Deleted HasKey",!TestAHasKey(key1));
     mu_assert("Count decrease",TestBCount()==g_count);
     mu_assert("HashHasKey Deleted HasKey",!TestBHasKey(key1));
+    mu_assert("Count decrease",TestCCount()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestCHasKey(key1));
+    mu_assert("Count decrease",TestDCount()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestDHasKey(key1));
 
     key1=2;g_count--;
-    ret=TestBDel(key1); mu_assert("Delete of key1 successful",ret); usleep(10000);
+    ret=TestDDel(key1); mu_assert("Delete of key1 successful",ret); usleep(10000);
     mu_assert("Count decrease",Test1Count()==g_count);
     mu_assert("HashHasKey Deleted HasKey",!Test1HasKey(key1));
-    mu_assert("Count decrease",Test9Count()==g_count);
-    mu_assert("HashHasKey Deleted HasKey",!Test9HasKey(key1));
-    mu_assert("Count decrease",TestACount()==g_count);
-    mu_assert("HashHasKey Deleted HasKey",!TestAHasKey(key1));
     mu_assert("Count decrease",TestBCount()==g_count);
     mu_assert("HashHasKey Deleted HasKey",!TestBHasKey(key1));
+    mu_assert("Count decrease",TestCCount()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestCHasKey(key1));
+    mu_assert("Count decrease",TestDCount()==g_count);
+    mu_assert("HashHasKey Deleted HasKey",!TestDHasKey(key1));
 
 #ifdef TIMETEST
     usecelapsed();
     for (i=10;i<500;i+=4) {
         key1=i;
         ret=Test1Set(key1+0,key1+0); mu_assert("Set Value",ret);g_count++;
-        ret=Test9Set(key1+1,key1+1); mu_assert("Set Value",ret);g_count++;
-        ret=TestASet(key1+2,key1+2); mu_assert("Set Value",ret);g_count++;
-        ret=TestBSet(key1+3,key1+3); mu_assert("Set Value",ret);g_count++;
-        //PRINT("1: %d 9: %d A: %d B: %d", Test1Count(), Test9Count(),TestACount(), TestBCount());
+        ret=TestBSet(key1+1,key1+1); mu_assert("Set Value",ret);g_count++;
+        ret=TestCSet(key1+2,key1+2); mu_assert("Set Value",ret);g_count++;
+        ret=TestDSet(key1+3,key1+3); mu_assert("Set Value",ret);g_count++;
+        //PRINT("1: %d 9: %d A: %d B: %d", Test1Count(), TestBCount(),TestCCount(), TestDCount());
     }
     PRINT("Load count: %d time: %0.6lf seconds\n",g_count,((double) usecelapsed())/1000000.0);
     mu_assert("Count match",Test1Count()==g_count);
-    mu_assert("Count match",Test9Count()==g_count);
-    mu_assert("Count match",TestACount()==g_count);
     mu_assert("Count match",TestBCount()==g_count);
+    mu_assert("Count match",TestCCount()==g_count);
+    mu_assert("Count match",TestDCount()==g_count);
 #endif
 
 
     Test1Free();
-    Test9Free();
-    TestAFree();
     TestBFree();
+    TestCFree();
+    TestDFree();
 
     TestS1NetStart(netPort);
     TestS2NetStart(netPort);
@@ -1052,10 +1118,10 @@ static char * testNetShare(void)
 
 
 /* Test larger dataset */
-DEFINE_LIST(Test5,int,uint32_t);
-DEFINE_LIST(Test6,uint64_t,uint64_t);
 DEFINE_LIST(Test7,int,uint32_t);
-DEFINE_HASH(Test8,uint64_t);
+DEFINE_LIST(Test8,uint64_t,uint64_t);
+DEFINE_LIST(Test9,int,uint32_t);
+DEFINE_HASH(TestA,uint64_t);
 static char * testLargeHash(void)
 {
     TIMEINFO("start");/* Print time info if enabled */
@@ -1070,13 +1136,13 @@ static char * testLargeHash(void)
     for (i=0;i<max;i++) {
         h=pyHash((uint8_t *)&i,sizeof(i));
         v=h>>2;
-        Test5Set(i,h);
+        Test7Set(i,h);
         sprintf(buf,"%05x",h);
-        Test8Set(buf,v);
-        Test7Set(h,v);
+        TestASet(buf,v);
+        Test9Set(h,v);
         if ((i%(max/10))==0) {
-            mu_assert("Load Hash Count",Test7Count()==(i+1));
-            mu_assert("Load Hash Count",Test8Count()==(i+1));
+            mu_assert("Load Hash Count",Test9Count()==(i+1));
+            mu_assert("Load Hash Count",TestACount()==(i+1));
         }
     }
     TIMEINFO("First Set done");/* Print time info if enabled */
@@ -1084,95 +1150,101 @@ static char * testLargeHash(void)
     for (i=0;i<max;i++) {
         int t1;
         int t2;
-        h=Test5Val(i);
+        h=Test7Val(i);
         sprintf(buf,"%05x",h);
-        t2=Test8Val(buf);
-        t1=Test7Val(h);
+        t2=TestAVal(buf);
+        t1=Test9Val(h);
         mu_assert("Compare Values",t1==t2);
     }
     TIMEINFO("Compare done");/* Print time info if enabled */
     /* Delete items and check count */
     for (i=0;i<max;i++) {
-        h=Test5Val(i);
+        h=Test7Val(i);
         sprintf(buf,"%05x",h);
-        Test8HasKey(buf);
-        Test7HasKey(h);
-        mu_assert("HasKey Entry",Test8HasKey(buf));
-        mu_assert("HasKey Entry",Test7HasKey(h));
-        mu_assert("Delete Entry",Test8Del(buf));
-        mu_assert("Delete Entry",Test7Del(h));
+        TestAHasKey(buf);
+        Test9HasKey(h);
+        mu_assert("HasKey Entry",TestAHasKey(buf));
+        mu_assert("HasKey Entry",Test9HasKey(h));
+        mu_assert("Delete Entry",TestADel(buf));
+        mu_assert("Delete Entry",Test9Del(h));
         if ((i%(max/10))==0) {
-            mu_assert("Delete Hash Count",Test7Count()==(max-i-1));
-            mu_assert("Delete Hash Count",Test8Count()==(max-i-1));
+            mu_assert("Delete Hash Count",Test9Count()==(max-i-1));
+            mu_assert("Delete Hash Count",TestACount()==(max-i-1));
         }
     }
     TIMEINFO("Delete done");/* Print time info if enabled */
     /* Set items and ensure count is correct */
     TIMEINFO("Set allocated List again");/* Print time info if enabled */
     for (i=0;i<max;i++) {
-        h=Test5Val(i)>>1;
+        h=Test7Val(i)>>1;
         sprintf(buf,"%d",i);
-        Test8Set(buf,h);
-        Test7Set(h,i);
+        TestASet(buf,h);
+        Test9Set(h,i);
         if ((i%(max/10))==0) {
-            mu_assert("Load Hash Count",Test7Count()==(i+1));
-            mu_assert("Load Hash Count",Test8Count()==(i+1));
+            mu_assert("Load Hash Count",Test9Count()==(i+1));
+            mu_assert("Load Hash Count",TestACount()==(i+1));
         }
     }
     TIMEINFO("Set List again");/* Print time info if enabled */
     count=Test7.count();
-    Test7.save("/tmp/test7.hash");
-    Test8.save("/tmp/test8.hash");
+    TestA.save("/tmp/testA.hash");
+    Test9.save("/tmp/test9.hash");
     TIMEINFO("Save Done");/* Print time info if enabled */
-    Test7Free();
-    Test8Free();
+    TestAFree();
+    Test9Free();
     TIMEINFO("Two Frees full list done");/* Print time info if enabled */
-    mu_assert("Free Hash Count",Test7Count()==0);
-    mu_assert("Free Hash Count",Test8Count()==0);
-    Test7Free();
-    Test8Free();
-    mu_assert("Free Hash Count",Test7Count()==0);
-    mu_assert("Free Hash Count",Test8Count()==0);
+    mu_assert("Free Hash Count",TestACount()==0);
+    mu_assert("Free Hash Count",Test9Count()==0);
+    TestAFree();
+    Test9Free();
+    mu_assert("Free Hash Count",TestACount()==0);
+    mu_assert("Free Hash Count",Test9Count()==0);
     /* Set items and ensure count is correct */
     TIMEINFO("Set allocated List again");/* Print time info if enabled */
-    Test7.load("/tmp/test7.hash");
-    Test8.load("/tmp/test8.hash");
-    unlink("/tmp/test7.hash");
-    unlink("/tmp/test8.hash");
-    mu_assert("Free Hash Count",Test7Count()==count);
-    mu_assert("Free Hash Count",Test8Count()==count);
+    TestA.load("/tmp/testA.hash");
+    Test9.load("/tmp/test9.hash");
+    unlink("/tmp/testA.hash");
+    unlink("/tmp/test9.hash");
+    mu_assert("Free Hash Count",TestACount()==count);
+    mu_assert("Free Hash Count",Test9Count()==count);
     for (i=0;i<max;i++) {
-        uint32_t u7;
-        uint64_t u8;
-        h=Test5Val(i)>>1;
+        uint32_t u9;
+        uint64_t uA;
+        h=Test7Val(i)>>1;
         sprintf(buf,"%d",i);
-        mu_assert("Get Loaded Value",Test7Get(h,&u7));
-        mu_assert("Check Loaded Value",u7==i);
-        mu_assert("Get Loaded Value",Test8Get(buf,&u8));
-        mu_assert("Check Loaded Value",u8==h);
+        mu_assert("Get Loaded Value",Test9Get(h,&u9));
+        mu_assert("Check Loaded Value",u9==i);
+        mu_assert("Get Loaded Value",TestAGet(buf,&uA));
+        mu_assert("Check Loaded Value",uA==h);
     }
-    TIMEINFO("Complete");/* Print time info if enabled */
 
-    Test7Free();
-    Test8Free();
-    mu_assert("Free Hash Count",Test7Count()==0);
-    mu_assert("Free Hash Count",Test8Count()==0);
+    Test9Free();
+    TestAFree();
+    TIMEINFO("Two Frees full list done");/* Print time info if enabled */
+    mu_assert("Free Hash Count",Test9Count()==0);
+    mu_assert("Free Hash Count",TestACount()==0);
+    Test9Free();
+    TestAFree();
+    mu_assert("Free Hash Count",Test9Count()==0);
+    mu_assert("Free Hash Count",TestACount()==0);
+
+    TIMEINFO("Complete");/* Print time info if enabled */
 
     /* Set items and ensure count is correct */
     {
         int cnt=0,j=0,c;
-        max=Test5Count();
+        max=Test7Count();
         c=11;
         h=0;
         usecelapsed();
         for (i=0;i<c;i++) for (j=1;j<max;j++) {
-            Test5Get(max-j,&h);
-            Test6Set(h+i,h+i+j);
+            Test7Get(max-j,&h);
+            Test8Set(h+i,h+i+j);
             cnt++;
         }
         PRINT("Load count: %d time: %0.6lf seconds\n",cnt,((double) usecelapsed())/1000000.0);
     }
-    Test6Free();
+    Test8Free();
     return 0;
 }
 
@@ -1194,12 +1266,12 @@ static char *test1Thread(void *parm)
     pthread_cond_wait(&testStartCond, &mutexCond);
     pthread_mutex_unlock(&mutexCond);
     TIMEINFO("GO");/* Print time info if enabled */
-    while (Test5Count()) {
+    while (Test7Count()) {
         int k;
         uint32_t v;
-        k=Test5Keys(0);
-        if (Test5Get(k,&v)) {
-            if (Test5Del(k)) {
+        k=Test7Keys(0);
+        if (Test7Get(k,&v)) {
+            if (Test7Del(k)) {
                 Thread1Set(k,v);
             }
         }
@@ -1217,13 +1289,13 @@ static char *test2Thread(void *parm)
     pthread_cond_wait(&testStartCond, &mutexCond);
     pthread_mutex_unlock(&mutexCond);
     TIMEINFO("GO");/* Print time info if enabled */
-    while (Test5Count()) {
+    while (Test7Count()) {
         int k;
         uint32_t v;
-        k=Test5Keys(0);
-        Test5Get(k,&v);
-        if (Test5Get(k,&v)) {
-            if (Test5Del(k)) {
+        k=Test7Keys(0);
+        Test7Get(k,&v);
+        if (Test7Get(k,&v)) {
+            if (Test7Del(k)) {
                 Thread2Set(k,v);
             }
         }
@@ -1240,12 +1312,12 @@ static char *test3Thread(void *parm)
     pthread_cond_wait(&testStartCond, &mutexCond);
     pthread_mutex_unlock(&mutexCond);
     TIMEINFO("GO");/* Print time info if enabled */
-    while (Test5Count()) {
+    while (Test7Count()) {
         int k;
         uint32_t v;
-        k=Test5Keys(0);
-        if (Test5Get(k,&v)) {
-            if (Test5Del(k)) {
+        k=Test7Keys(0);
+        if (Test7Get(k,&v)) {
+            if (Test7Del(k)) {
                 Thread3Set(k,v);
             }
         }
@@ -1306,7 +1378,7 @@ static char *testThreadMain(void)
         }
         mu_assert("Value mismatch",pyHash((uint8_t*) &i,sizeof(i))==v);
     }
-    Test5Free();
+    Test7Free();
     Thread1Free();
     Thread2Free();
     Thread3Free();
@@ -1321,8 +1393,8 @@ static char *testCleanup(void)
     mu_assert("Test2Hash",!Test2Count());
     mu_assert("Test3Hash",!Test3Count());
     mu_assert("Test4Hash",!Test4Count());
-    mu_assert("Test5Hash",!Test5Count());
-    mu_assert("Test6Hash",!Test6Count());
+    mu_assert("Test7Hash",!Test7Count());
+    mu_assert("Test8Hash",!Test8Count());
     mu_assert("Thread1Hash",!Thread1Count());
     mu_assert("Thread2Hash",!Thread2Count());
     mu_assert("Thread3Hash",!Thread3Count());
@@ -1335,6 +1407,8 @@ static char *testCleanup(void)
     Test4Free();
     Test5Free();
     Test6Free();
+    Test7Free();
+    Test8Free();
     return 0;
 }
 
@@ -1352,6 +1426,7 @@ static char * all_tests() {
     mu_run_test(testHashDel);
     mu_run_test(testForEach);
     mu_run_test(testHashLoad);
+    mu_run_test(testFifo);
     mu_run_test(testHashFree);
     mu_run_test(testNetShare);
     DBUG_SW(false);

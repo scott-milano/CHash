@@ -51,8 +51,6 @@ struct repl_info;
 typedef struct repl_info repl_info_t;
 
 /* Function pointer typedefs */
-/** Search function for list/hash */
-//typedef void* (*_list_search_fn_t)(list_store_t*,void*,void*);
 /** Allocation function for key/value of entry */
 typedef void* (*_list_alloc_fn_t)(const void*);
 /** Access function for copy of value */
@@ -61,9 +59,6 @@ typedef void* (*_list_copy_fn_t)(void *,const void*);
 typedef size_t (*_list_size_fn_t)(const void*);
 /** Debug print function */
 typedef char* (*_list_print_fn_t)(const list_type_info_t*, const void*);
-
-/** @brief Internal function, do not access directly */
-//void *hash_search(list_store_t *store,void *keyref,void *valref);
 
 /** accessor methods used for generate inlines, not for external use */
 void *_list_reference(list_store_t *store,void *keyref);
@@ -78,6 +73,7 @@ bool _list_load(list_store_t *store,char *file);
 bool _list_save(list_store_t *store,char *file);
 bool _list_free(list_store_t *store);
 bool _list_remove(list_store_t *store,void *keyref);
+bool _list_remove_value(list_store_t *store,int index,void *value);
 bool _list_lock(list_store_t *store,void *keyref,bool lock);
 static inline int _index_wrap(int i,size_t m);
 /* Replication Thread Function */
@@ -145,6 +141,8 @@ typedef char* STR;
     static HN##_v HN##_zero; \
     LIST_FUNCTION_GET(HN,&key) \
     LIST_FUNCTION_SET(HN,&key) \
+    LIST_FUNCTION_POP(HN) \
+    LIST_FUNCTION_NEXT(HN) \
     LIST_FUNCTION_PTR(HN,&key) \
     LIST_FUNCTION_VAL(HN,&key) \
     LIST_FUNCTION_COUNT(HN) \
@@ -178,6 +176,8 @@ typedef char* STR;
     static HN##_v HN##_zero; \
     LIST_FUNCTION_GET(HN,key) \
     LIST_FUNCTION_SET(HN,key) \
+    LIST_FUNCTION_POP(HN) \
+    LIST_FUNCTION_NEXT(HN) \
     LIST_FUNCTION_PTR(HN,key) \
     LIST_FUNCTION_VAL(HN,key) \
     LIST_FUNCTION_COUNT(HN) \
@@ -194,8 +194,38 @@ typedef char* STR;
     DECLARE_INSTANCE(HN)
 
 
+/** Type for FIFO Key */
+typedef struct timespec timespec_t;
+
 /**
- * @brief List reference macro
+ * @brief Fifo generation macro
+ * @param HN Hash name prefix.  Accessor functions begin with this name
+ * @param HV Type for list value.  Must be a defined type, and not a pointer to a type.
+ * Key type for this list type is a integer, provided by the library
+ * Fifo starts with 30 items and increases as needed
+ * @copydetails HASH
+ */
+#define DEFINE_FIFO(HN,HV) \
+    LIST_KEYTYPE(HN,timespec_t) \
+    FIFO_TYPEFN(HN##_k) \
+    LIST_VALTYPE(HN,HV) \
+    LIST_TYPEFN(HN##_v) \
+    static DECLARE_LIST(HN) \
+    LIST_FUNCTION_POP(HN) \
+    LIST_FUNCTION_NEXT(HN) \
+    LIST_FUNCTION_PUSH(HN) \
+    LIST_FUNCTION_COUNT(HN) \
+    LIST_FUNCTION_ITEM(HN) \
+    LIST_FUNCTION_LOAD(HN) \
+    LIST_FUNCTION_SAVE(HN) \
+    LIST_FUNCTION_FREE(HN) \
+    LIST_FUNCTION_NETSTART(HN) \
+    DECLARE_FIFO_HANDLER_TYPE(HN) \
+    DECLARE_FIFO_INSTANCE(HN)
+
+
+/**
+ * @brief Reference extern List generated in another C module
  * This macro creates a global version of the list/hash that can be accessed throught
  * an application.
  * @param HN Hash name prefix.  Accessor functions begin with this name
@@ -213,6 +243,8 @@ typedef char* STR;
     static HN##_v HN##_zero; \
     LIST_FUNCTION_GET(HN,&key) \
     LIST_FUNCTION_SET(HN,&key) \
+    LIST_FUNCTION_POP(HN) \
+    LIST_FUNCTION_NEXT(HN) \
     LIST_FUNCTION_PTR(HN,&key) \
     LIST_FUNCTION_VAL(HN,&key) \
     LIST_FUNCTION_COUNT(HN) \
@@ -229,7 +261,7 @@ typedef char* STR;
     DECLARE_INSTANCE(HN)
 
 /**
- * @brief Hash generation macro
+ * @brief Referenc extern Hash generated in another C source file
  * @param HN Hash name prefix.  Accessor functions begin with this name
  * @param HV Type for list value.  Must be a defined type, and not a pointer to a type.
  * Key type for this list type is a variable length string
@@ -245,6 +277,8 @@ typedef char* STR;
     static HN##_v HN##_zero; \
     LIST_FUNCTION_GET(HN,key) \
     LIST_FUNCTION_SET(HN,key) \
+    LIST_FUNCTION_POP(HN) \
+    LIST_FUNCTION_NEXT(HN) \
     LIST_FUNCTION_PTR(HN,key) \
     LIST_FUNCTION_VAL(HN,key) \
     LIST_FUNCTION_COUNT(HN) \
@@ -259,6 +293,32 @@ typedef char* STR;
     LIST_FUNCTION_NETSTART(HN) \
     DECLARE_HANDLER_TYPE(HN) \
     DECLARE_INSTANCE(HN)
+
+/**
+ * @brief Fifo generation macro
+ * @param HN Hash name prefix.  Accessor functions begin with this name
+ * @param HV Type for list value.  Must be a defined type, and not a pointer to a type.
+ * Key type for this list type is a integer, provided by the library
+ * Fifo starts with 30 items and increases as needed
+ * @copydetails HASH
+ */
+#define EXTERN_FIFO(HN,HV) \
+    LIST_KEYTYPE(HN,timespec_t) \
+    FIFO_TYPEFN(HN##_k) \
+    LIST_VALTYPE(HN,HV) \
+    LIST_TYPEFN(HN##_v) \
+    extern list_store_t HN##_store; \
+    LIST_FUNCTION_POP(HN) \
+    LIST_FUNCTION_NEXT(HN) \
+    LIST_FUNCTION_PUSH(HN) \
+    LIST_FUNCTION_COUNT(HN) \
+    LIST_FUNCTION_ITEM(HN) \
+    LIST_FUNCTION_LOAD(HN) \
+    LIST_FUNCTION_SAVE(HN) \
+    LIST_FUNCTION_FREE(HN) \
+    LIST_FUNCTION_NETSTART(HN) \
+    DECLARE_FIFO_HANDLER_TYPE(HN) \
+    DECLARE_FIFO_INSTANCE(HN)
 
 /**
  * @brief List and Hash storage structure creation macro
@@ -283,6 +343,8 @@ typedef char* STR;
     typedef struct { \
         bool (*get)(HN##_k,HN##_v*); \
         bool (*set)(HN##_k,HN##_v); \
+        bool (*pop)(HN##_v*); \
+        bool (*next)(HN##_v*); \
         HN##_v* (*addr)(HN##_k); \
         HN##_v (*val)(HN##_k); \
         int (*count)(void); \
@@ -301,6 +363,8 @@ typedef char* STR;
     HN##_handler_t HN={ \
         .get=HN##Get, \
         .set=HN##Set, \
+        .pop=HN##Pop, \
+        .next=HN##Next, \
         .addr=HN##Ptr, \
         .val=HN##Val, \
         .count=HN##Count, \
@@ -313,6 +377,33 @@ typedef char* STR;
         .save=HN##Save, \
         .free=HN##Free, \
     };
+
+/** Internal macro used by DEFINE_LIST/DEFINE_HASH */
+#define DECLARE_FIFO_HANDLER_TYPE(HN) \
+    typedef struct { \
+        bool (*pop)(HN##_v*); \
+        bool (*next)(HN##_v*); \
+        bool (*push)(HN##_v); \
+        int (*count)(void); \
+        bool (*item)(int,HN##_v*); \
+        bool (*load)(char*); \
+        bool (*save)(char*); \
+        bool (*free)(void); \
+    } HN##_handler_t;
+
+/** An instance of the LIST/HASH that includes methods for accessing data */
+#define DECLARE_FIFO_INSTANCE(HN) \
+    HN##_handler_t HN={ \
+        .pop=HN##Pop, \
+        .next=HN##Next, \
+        .push=HN##Push, \
+        .count=HN##Count, \
+        .item=HN##Item, \
+        .load=HN##Load, \
+        .save=HN##Save, \
+        .free=HN##Free, \
+    };
+
 
 /**
  * Macro to generate handler functions for key.
@@ -395,6 +486,29 @@ typedef char* STR;
         else return NULL; \
     }
 
+#define FIFO_TYPEFN(KT) \
+    static int KT##_cmp(const void *m1, const void *m2) \
+    { \
+        timespec_t *a=*(timespec_t **)m1; \
+        timespec_t *b=*(timespec_t **)m2; \
+        if (a->tv_sec == b->tv_sec) return a->tv_nsec - b->tv_nsec; \
+        else return a->tv_sec - b->tv_sec; \
+    } \
+    static void *KT##_cp(void *dst, const void *src) \
+    { \
+        return memcpy(dst,src,sizeof(KT));\
+    } \
+    static size_t KT##_sz(const void *src) \
+    { \
+        return sizeof(KT);\
+    } \
+    static void *KT##_alloc(const void *src) \
+    { \
+        void *dst=calloc(1,sizeof(KT)); \
+        if (dst) return memcpy(dst,src,sizeof(KT));\
+        else return NULL; \
+    }
+
 
 /* Access methods */
 /**
@@ -431,6 +545,58 @@ typedef char* STR;
     { \
         return _list_insert(&HN##_store, KEY, &value); \
     }
+
+/**
+ * @par ListPop static inline bool LNamePop(List_v *value);
+ * ListPop Pull the value from the end of the list and delete it
+ * @param value reference to value for return
+ * @return true on success, false on failure
+ * Remove and return Last Entry from list
+ * \code{.c}
+ * bool ListPop(in_addr_t *value);
+ * \endcode
+ */
+#define LIST_FUNCTION_POP(HN) \
+    static inline bool HN##Pop(HN##_v *value) \
+    { \
+        return _list_remove_value(&HN##_store,-1,value); \
+    }
+
+/**
+ * @par ListNext static inline bool LNameNext(List_v *value);
+ * ListNext Pull the first value from the front of the list and deletes it
+ * @param value reference to value for return
+ * @return true on success, false on failure
+ * Remove and return First Entry from list
+ * \code{.c}
+ * bool ListNext(in_addr_t *value);
+ * \endcode
+ */
+#define LIST_FUNCTION_NEXT(HN) \
+    static inline bool HN##Next(HN##_v *value) \
+    { \
+        return _list_remove_value(&HN##_store,0,value); \
+    }
+
+/**
+ * @par ListPush static inline bool LNamePush(LKeyType key,LValType value)
+ * @param value to create of update
+ * @return true on success, false on failure
+ * Push a new value onto end of list
+ * Set the value currently referenced, or add new value
+ * \code{.c}
+ * void ListPush(in_addr_t value);
+ * \endcode
+ *
+ */
+#define LIST_FUNCTION_PUSH(HN) \
+    static inline bool HN##Push(HN##_v value) \
+    { \
+        HN##_k key; \
+        clock_gettime(CLOCK_REALTIME,&key); \
+        return _list_insert(&HN##_store, &key, &value); \
+    }
+
 
 /**
  * @par ListPtr static inline LValType *LNamePtr(LKeyType key)
@@ -543,17 +709,17 @@ typedef char* STR;
  *
  */
 #define LIST_FUNCTION_ITEM(HN) \
-    static inline bool HN##Item(int i,HN##_v *val) \
+    static inline bool HN##Item(int i,HN##_v *value) \
     { \
         HN##_v *vptr=_list_valref(&HN##_store,i); \
         if (vptr) { \
-            memcpy(val,vptr,sizeof(*val)); \
+            memcpy(value,vptr,sizeof(*value)); \
             return true; \
         } else { \
             i=_index_wrap(i,HN##Count()); \
             if (i>=0) { \
                 vptr=_list_valref(&HN##_store,i); \
-                memcpy(val,vptr,sizeof(*val)); \
+                memcpy(value,vptr,sizeof(*value)); \
             } \
             return false; \
         } \
@@ -787,6 +953,7 @@ static inline int _index_wrap(int i,size_t m)
         if (m==0) return -1;
         /* Mod of negative number in C are negative */
         i=(i%(int)m)+m;
+        i=(i%(int)m);
     } else if (i>=m) {
         if (m==0) return -1;
         i=(i%(int)m);

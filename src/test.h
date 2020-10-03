@@ -49,6 +49,7 @@ typedef struct {int ifield; bool bfield; float ffield;} test_fields_t;
 
 EXTERN_LIST(Test1,TK1,TV1);
 EXTERN_HASH(Test4,test_fields_t);
+EXTERN_FIFO(Test6,TV2);
 
 /**@}*/
 #ifdef __cplusplus

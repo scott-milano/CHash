@@ -69,6 +69,18 @@
  * <hr>
  * @copydetails LIST_FUNCTION_LOCK
  *
+ * The following calls were introduced for the FIFO but are available for
+ * other types.
+ *
+ * @copydetails LIST_FUNCTION_POP
+ * <hr>
+ * @copydetails LIST_FUNCTION_NEXT
+ *
+ * This final call only makes sense for fifo types which use timespec key
+ * @copydetails LIST_FUNCTION_PUSH
+ * <hr>
+ *
+ *
  * @{
  *
  */
@@ -104,7 +116,7 @@ static uint32_t pyHash(const uint8_t *a,int s,uint32_t x);
 
 #ifdef LIST_ENTRY_LOCK
 /* Delete lock by index */
-static bool delete_lock(list_store_t *store,int index);
+static bool _delete_lock(list_store_t *store,int index);
 #endif
 
 /**
@@ -146,7 +158,8 @@ void *_hash_search(list_store_t *store,void *keyref,void *valref)
         /* Place key in temp entry for comparison, and convert pointers for
          * strings char ** to char* */
         entry.key=keyref;
-        eptr=lfind(&entry, store->list, &store->index,store->size,store->key.cmp);
+        eptr=lfind(&entry, store->list, &store->index,store->size,
+                store->key.cmp);
         slot=store->index;
 #endif
 
@@ -345,6 +358,12 @@ int _list_index(list_store_t *store,void *keyref)
     return index;
 }
 
+/**
+ * Start sharing list/hash on network at port
+ * @param store pointer to store structure.
+ * @param port mcast/udp port number
+ * @return true on success, false on fail
+ */
 bool _list_netstart(list_store_t *store,uint16_t port)
 {
     bool ret=true;
@@ -499,6 +518,11 @@ bool _list_save(list_store_t *store,char *file)
     return true;
 }
 
+/**
+ * Free entire list
+ * @param store pointer to store structure.
+ * @return true on success, false on fail
+ */
 bool _list_free(list_store_t *store)
 {
     bool ret=true;
@@ -517,7 +541,7 @@ bool _list_free(list_store_t *store)
 #ifdef LIST_ENTRY_LOCK
         /* Need to switch locks */
         pthread_mutex_unlock(&store->lock);
-        if (!delete_lock(store,store->index-1)) ret=false;
+        if (!_delete_lock(store,store->index-1)) ret=false;
         pthread_mutex_lock(&store->lock);
 #endif
         _delete_entry(store,store->index-1);
@@ -534,6 +558,48 @@ bool _list_free(list_store_t *store)
     return ret;
 }
 
+/** Remove item referenced by index and grab value as one mutexed operation
+ * @param keyref Key of item to remove
+ * @param index of item, -1 for last item
+ * @param value pointer
+ * @return True on success, False on failure
+ */
+bool _list_remove_value(list_store_t *store,int index,void *value)
+{
+    _entry_t *eptr=NULL; /**< Pointer to entry for lookup/search */
+    bool ret=false;
+
+#ifdef LIST_ENTRY_LOCK
+    /* Check if we have index. with the two locks, entry and list, we have more
+     * to do for cleanup to avoid holding both at the same time. */
+    _delete_lock(store,index);
+#endif
+
+    /* Grab the lock and enure the entry key is still valid */
+    pthread_mutex_lock(&store->lock);
+    if ((index<((int)store->index))&&(store->index)) {
+        if (index<0) index=_index_wrap(index,store->index);
+        eptr=((_entry_t *)store->list)+index;
+        /* Save a copy if requested */
+        if (value) store->value.cp(value,eptr->val);
+        if (store->port) {
+            if (eptr->key) repl_remove(store,eptr->key);
+        }
+        dbgindex(index);
+        if (index>=0) {
+            _delete_entry(store,index);
+            ret=true;
+        }
+    }
+    pthread_mutex_unlock(&store->lock);
+    return ret;
+}
+
+/** Remove item referenced by keyref
+ * @param keyref Key of item to remove
+ * @param store pointer to store structure.
+ * @return True on success, False on failure
+ */
 bool _list_remove(list_store_t *store,void *keyref)
 {
     bool ret=false;
@@ -544,7 +610,7 @@ bool _list_remove(list_store_t *store,void *keyref)
      * to do for cleanup to avoid holding both at the same time. */
     index=_list_index(store,keyref);
     if (index<0) return false;
-    delete_lock(store,index);
+    _delete_lock(store,index);
 #endif
 
     /* Grab the lock and enure the entry key is still valid */
@@ -614,7 +680,7 @@ int _find_index(list_store_t *store,void *keyref)
 
 /** Delete entry by index */
 #ifdef LIST_ENTRY_LOCK
-static bool delete_lock(list_store_t *store,int index)
+bool _delete_lock(list_store_t *store,int index)
 {
     bool ret=false;
     _entry_t *eptr=NULL; /**< Pointer to entry for lookup/search */
@@ -623,6 +689,7 @@ static bool delete_lock(list_store_t *store,int index)
     pthread_mutex_lock(&store->lock);
     /* Grab the lock from the entry */
     if ((store->list)&&(store->index)) {
+        if (index<0) index=_index_wrap(index.store->index);
         if ((index>=0)&&(index<store->index)) {
             eptr=((_entry_t *)store->list)+index;
             if (eptr) {
@@ -758,6 +825,8 @@ static char *hash_print(const list_type_info_t *type,const void *val)
     
     if ((!val)) sprintf(cptr,"%s:NULL",type->name);
     else if (!strcmp(type->name,"STR")) sprintf(cptr,"%s",((char *)val));
+    else if (!strcmp(type->name,"timespec_t")) sprintf(cptr,"%ld:%ld",
+            (((timespec_t *)val)->tv_sec),(((timespec_t *)val)->tv_nsec));
     else if (type->size==8) sprintf(cptr,"0x%lx",*((uint64_t *)val));
     else if (type->size==4) sprintf(cptr,"0x%x",*((uint32_t *)val));
     else if (type->size==2) sprintf(cptr,"0x%x",*((uint16_t *)val));
